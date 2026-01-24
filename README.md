@@ -98,7 +98,7 @@ begin
     p product[:id]
     p product[:description_html]
   end
-rescue ShopifyAPI::GraphQL::Request::NotFoundError, ShopifyAPI::GraphQL::Request::Error => e
+rescue ShopifyAPI::GraphQL::Request::NotFoundError => e
   warn "Request failed: #{e}"
 end
 ```
@@ -121,7 +121,7 @@ Subclasses have access to the following methods:
 Both of these are small wrappers around the equivalent methods on `ShopifyAPI::GraphQL::Tiny`.
 For more information see [its documentation on retries](https://github.com/ScreenStaring/shopify_api-graphql-tiny#automatically-retrying-failed-requests).
 
-These defaults be disabled per instance or per execution:
+With the exception of retry, most defaults can be disabled per instance or per execution:
 
 ```rb
 class ShopifyProduct < ShopifyAPI::GraphQL::Request
@@ -134,6 +134,8 @@ class ShopifyProduct < ShopifyAPI::GraphQL::Request
   end
 end
 ```
+
+Disabling retry must be done per instance.
 
 ### Setting the GraphQL API Version
 

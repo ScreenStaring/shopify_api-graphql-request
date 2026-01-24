@@ -46,7 +46,8 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
               }
             }
           GQL
-        }.to raise_error(described_class::NotFoundError, 'No record found for customer with {"id"=>"gid://shopify/Customer/1"}')
+          # 3.4 changes Hash#inspect output
+        }.to raise_error(described_class::NotFoundError, %r|\ANo record found for customer with {"id"\s*=>\s*"gid://shopify/Customer/1"}|)
       end
 
       context "when :raise_if_not_found is false" do
@@ -216,7 +217,8 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
     it "raise a NotFoundError when the query target cannot be found" do
       expect {
         client.paginate(@query, :id => "gid://shopify/Product/1").first
-      }.to raise_error(described_class::NotFoundError, 'No record found for product with {"id"=>"gid://shopify/Product/1"}')
+        # 3.4 changes Hash#inspect output
+      }.to raise_error(described_class::NotFoundError, %r|\ANo record found for product with {"id"\s*=>\s*"gid://shopify/Product/1"}|)
     end
   end
 end
