@@ -181,6 +181,22 @@ end
 
 For more information checkout [the API docs](https://rdoc.info/gems/shopify_api-graphql-request)
 
+## Why Use This Instead of Shopify's API Client?
+
+- Easy-to-use
+- Built-in retry
+- Built-in pagination
+- Improved exception handling
+- You can use `:snake_case` hash keys
+- Lightweight
+
+Overall, Shopify's API client is bloated trash that will give you development headaches and long-term maintenance nightmares.
+
+We used to use it, staring way back in 2015, but eventually had to pivot away from their Ruby libraries due to developer
+frustration and high maintenance cost (and don't get us started on the ShopifyApp gem!@#).
+
+For more information see: https://github.com/Shopify/shopify-api-ruby/issues/1181
+
 ## Testing
 
 `cp env.template .env` and fill-in `.env` with the missing values. This requires a Shopify store.
