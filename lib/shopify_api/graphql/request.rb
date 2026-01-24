@@ -89,9 +89,9 @@ module ShopifyAPI
       #
       #  These override the instance's defaults for a single query or mutation.
       #
-      # [:raise_if_not_found (Boolean)]
-      # [:raise_if_user_errors (Boolean)]
-      # [:snake_case (Boolean)]
+      # [:raise_if_not_found (Boolean)] - raise a `ShopifyAPI::GraphQL::Request::NotFoundError` if query target is not found; defaults to +true+
+      # [:raise_if_user_errors (Boolean)] - raise a `ShopifyAPI::GraphQL::Request::UserError` if the response contains them; defaults to +true+
+      # [:snake_case (Boolean)] - Accept `:snake_case`-style hash keys and returned response hash keys to be snake_case; defaults to +true+
       #
       # === Returns
       #
@@ -137,7 +137,7 @@ module ShopifyAPI
       #
       # === Errors
       #
-      #  See #execute
+      # See #execute
       #
       def paginate(query, variables = nil, options = nil)
         options = @options.merge(options || {})
