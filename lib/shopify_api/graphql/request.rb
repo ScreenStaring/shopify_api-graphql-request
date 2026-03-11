@@ -189,6 +189,8 @@ module ShopifyAPI
         transform_keys(object) { |key| Strings::Case.snakecase(key).to_sym }
       end
 
+      private
+
       def transform_keys(object, &transformer)
         case object
         when Hash
