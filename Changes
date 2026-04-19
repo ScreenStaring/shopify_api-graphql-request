@@ -1,0 +1,4 @@
+v0.0.2  2026-04-19
+--------------------
+Require TinyGID >= 0.1.2. This version allows one to call #parse and #to_s methods on #gid.
+Make #transform_keys private to communicate to implementors that it should not be called
