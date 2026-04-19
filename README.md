@@ -5,11 +5,36 @@ Comes with built-in retry, pagination, error handling, and more!
 
 ## Usage
 
-It's recommended to organize queries and mutations by subclassing `ShopifyAPI::GraphQL::Request`:
+Queries:
 
 ```rb
 require "shopify_api/graphql/request"
 
+request = ShopifyAPI::GraphQL::Request.new("a-shop", token)
+
+begin
+  product = request.execute(query, :id => "gid://shopify/Product/123").dig(:data, :product)
+  p product[:title]
+  p product[:description_html]
+rescue ShopifyAPI::GraphQL::Request::NotFoundError => e
+  p e
+end
+```
+
+And mutations:
+
+```rb
+begin
+  product = request.execute(mutation, :id => "gid://shopify/Product/123", :title => "Foo Hoo!").dig(:data, :product)
+rescue ShopifyAPI::GraphQL::Request::UserError => e
+  p e
+end
+```
+
+If your application contains a lot of query and/or mutations it's recommended to organize them by
+subclassing `ShopifyAPI::GraphQL::Request`:
+
+```rb
 class ShopifyProduct < ShopifyAPI::GraphQL::Request
   # Define your queries/mutations
   FIND =<<-GQL
@@ -149,34 +174,6 @@ class ShopifyProduct < ShopifyAPI::GraphQL::Request
 end
 ```
 
-### Making Requests Without Subclassing
-
-Of course you can make requests directly on an instance of `ShopifyAPI::GraphQL::Request`:
-
-```rb
-require "shopify_api/graphql/request"
-
-request = ShopifyAPI::GraphQL::Request.new("a-shop", token)
-
-begin
-  product = request.execute(query, :id => "gid://shopify/Product/123").dig(:data, :product)
-  p product[:title]
-  p product[:description_html]
-rescue ShopifyAPI::GraphQL::Request::NotFoundError => e
-  p e
-end
-```
-
-And mutations:
-
-```rb
-begin
-  product = request.execute(mutation, :id => "gid://shopify/Product/123", :title => "Foo Hoo!").dig(:data, :product)
-rescue ShopifyAPI::GraphQL::Request::UserError => e
-  p e
-end
-```
-
 ### More Info
 
 For more information checkout [the API docs](https://rdoc.info/gems/shopify_api-graphql-request)
@@ -213,4 +210,4 @@ The gem is available as open source under the terms of the [MIT License](https:/
 
 ---
 
-Made by [ScreenStaring](http://screenstaring.com)
+Made by [ScreenStaring](https://screenstaring.com)
