@@ -32,7 +32,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "shopify_api-graphql-tiny", ">= 1.0.1", "< 2"
-  spec.add_dependency "tiny_gid"
+  spec.add_dependency "tiny_gid", , ">= 0.1.2", "< 2"
   spec.add_dependency "strings-case"
 
   spec.add_development_dependency "bundler"
