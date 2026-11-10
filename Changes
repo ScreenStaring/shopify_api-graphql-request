@@ -1,3 +1,9 @@
+v0.1.0  2026-11-10
+--------------------
+Add OAuth::AccessToken to support Shopify expiring tokens
+Add :refresh option to Request to automatically refresh expiring tokens
+Add shopify_api:graphql:request:migrate_access_tokens Rake task for non-expiring token migration
+
 v0.0.2  2026-04-19
 --------------------
 Require TinyGID >= 0.1.2. This version allows one to call #parse and #to_s methods on #gid.
