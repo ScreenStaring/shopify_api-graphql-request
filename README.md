@@ -3,7 +3,7 @@
 [![CI](https://github.com/ScreenStaring/shopify_api-graphql-request/actions/workflows/main.yml/badge.svg)](https://github.com/ScreenStaring/shopify_api-graphql-request/actions/workflows/main.yml)
 
 Small class to simplify the writing and handling of GraphQL queries and mutations for the Shopify Admin API.
-Comes with built-in retry, pagination, error handling, and more!
+Comes with built-in retry, token refresh, pagination, error handling, and more!
 
 ## Usage
 
