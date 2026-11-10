@@ -12,6 +12,9 @@ jobs:
       SHOPIFY_TOKEN: "${{ secrets.SHOPIFY_TOKEN }}"
       SHOPIFY_CUSTOMER_ID: "${{ secrets.SHOPIFY_CUSTOMER_ID }}"
       SHOPIFY_PRODUCT_ID: "${{ secrets.SHOPIFY_PRODUCT_ID }}"
+      SHOPIFY_REFRESH_TOKEN: "${{ secrets.SHOPIFY_REFRESH_TOKEN }}"
+      SHOPIFY_CLIENT_API_KEY: "${{ secrets.SHOPIFY_CLIENT_API_KEY }}"
+      SHOPIFY_CLIENT_API_SECRET: "${{ secrets.SHOPIFY_CLIENT_API_SECRET }}"
 
     strategy:
       matrix:

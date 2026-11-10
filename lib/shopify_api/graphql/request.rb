@@ -13,6 +13,12 @@ module ShopifyAPI
     #
     class Request
       Error = Class.new(StandardError)
+      RefreshNotCalledError = Class.new(Error)
+
+      # Smallest plausible Unix epoch timestamp (Sep 2001). Used to guard against callers
+      # mistakenly passing relative duration offsets (e.g., 3600 or Shopify's `expires_in`)
+      # instead of an absolute point in time.
+      MIN_EPOCH_TIMESTAMP = 1_000_000_000
 
       class UserError < Error
         attr_reader :errors
@@ -60,6 +66,21 @@ module ShopifyAPI
       # [:raise_if_not_found (Boolean)] If +true+ raise a NotFoundError if the requested record is not found. Defaults to +true+.
       # [:raise_if_user_errors (Boolean)] If +true+ raise a UserError if the mutation resulted in user errors. Defaults to +true+.
       # [:snake_case (Boolean)] Convert response `Hash` keys to +snake_case+ symbols. Defaults to +true+.
+      # [:refresh (Hash)] Auto-refresh expiring access tokens. Requires +:client_id+, +:client_secret+,
+      #   +:expires_at+, +:refresh_token+, +:refresh_expires_at+, and +:synchronize+.
+      #   +:expires_at+ and +:refresh_expires_at+ must be absolute timestamps (+Time+s or Integer Unix epoch timestamps in seconds),
+      #   not relative duration offsets (e.g. Shopify's +expires_in+).
+      #
+      #   +:synchronize+ is a Proc called with a refresh Proc and the shop. It should persist the new token
+      #   state returned by the refresh Proc:
+      #
+      #     :synchronize => ->(refresh, shop) do
+      #       store.update!(refresh.call)
+      #     end
+      #
+      #   Calling +refresh.call+ without arguments uses the client's current in-memory token state.
+      #   In multi-process environments, pass the freshly read token state from storage (e.g. +refresh.call(db_state)+)
+      #   under a lock to prevent concurrent workers from performing duplicate refreshes.
       #
       # Additional options: those accepted by {ShopifyAPI::GraphQL::Tiny}[https://rdoc.info/gems/shopify_api-graphql-tiny]
       #
@@ -70,9 +91,30 @@ module ShopifyAPI
           @options[name] = true unless @options.include?(name)
         end
 
+        @shop = shop
         @gql = ShopifyAPI::GraphQL::Tiny.new(shop, token, @options)
 
         @gid = TinyGID.new("shopify")
+
+        refresh = @options[:refresh]
+        return unless refresh
+
+        raise ArgumentError, ":refresh must be a Hash" unless refresh.is_a?(Hash)
+
+        missing = [:client_id, :client_secret, :expires_at, :refresh_token, :refresh_expires_at, :synchronize].reject { |name| refresh.include?(name) }
+        raise ArgumentError, ":refresh requires #{missing.join(", ")}" if missing.any?
+
+        validate_timestamp(:expires_at, refresh[:expires_at])
+        validate_timestamp(:refresh_expires_at, refresh[:refresh_expires_at]) if refresh[:refresh_expires_at]
+
+        @oauth = OAuth::AccessToken.new(refresh[:client_id], refresh[:client_secret], shop, @options)
+        @synchronize = refresh[:synchronize]
+        @token_state = {
+          :access_token => token,
+          :expires_at => refresh[:expires_at],
+          :refresh_token => refresh[:refresh_token],
+          :refresh_expires_at => refresh[:refresh_expires_at]
+        }
       end
 
       ##
@@ -100,6 +142,7 @@ module ShopifyAPI
       # === Errors
       #
       # * ArgumentError
+      # * ShopifyAPI::GraphQL::Request::RefreshNotCalledError - if :synchronize did not invoke refresh
       # * ShopifyAPI::GraphQL::Request::UserError - the a mutation contains user errors
       # * ShopifyAPI::GraphQL::Request::NotFoundError - if the query cannot be find the given object
       # * ShopifyAPI::GraphQL::Tiny::ConnectionError
@@ -111,8 +154,16 @@ module ShopifyAPI
         options = @options.merge(options || {})
 
         variables = camelize_keys(variables) if options[:snake_case]
+        ensure_fresh_token
 
-        data = gql.execute(query, variables)
+        begin
+          data = gql.execute(query, variables)
+        rescue ShopifyAPI::GraphQL::Tiny::HTTPError => error
+          raise unless refreshable? && error.code == "401"
+
+          refresh_after_401
+          data = gql.execute(query, variables)
+        end
 
         raise_if_not_found(data, variables) if options[:raise_if_not_found]
         raise_if_user_errors(data) if options[:raise_if_user_errors]
@@ -143,20 +194,28 @@ module ShopifyAPI
         options = @options.merge(options || {})
 
         variables = camelize_keys(variables) if options[:snake_case]
+        ensure_fresh_token
 
-        pager = gql.paginate
-        # execute() returns a lazy enumerator so we're not loading everything now.
-        pages = pager.execute(query, variables).map do |page|
-          raise_if_not_found(page, variables) if options[:raise_if_not_found]
-          raise_if_user_errors(page) if options[:raise_if_user_errors]
+        begin
+          pager = gql.paginate
+          # execute() returns a lazy enumerator so we're not loading everything now.
+          pages = pager.execute(query, variables).map do |page|
+            raise_if_not_found(page, variables) if options[:raise_if_not_found]
+            raise_if_user_errors(page) if options[:raise_if_user_errors]
 
-          page = snake_case_keys(page) if options[:snake_case]
-          page
+            page = snake_case_keys(page) if options[:snake_case]
+            page
+          end
+
+          return pages unless block_given?
+
+          pages.each { |page| yield page }
+        rescue ShopifyAPI::GraphQL::Tiny::HTTPError => error
+          raise unless refreshable? && error.code == "401"
+
+          refresh_after_401
+          retry
         end
-
-        return pages unless block_given?
-
-        pages.each { |page| yield page }
 
         nil
       end
@@ -191,6 +250,92 @@ module ShopifyAPI
 
       private
 
+      def ensure_fresh_token
+        return unless refreshable?
+        return unless token_expired?(@token_state)
+
+        synchronize(method(:refresh_tokens))
+      end
+
+      def refreshable?
+        @oauth && @synchronize
+      end
+
+      def token_expired?(state)
+        expires_at = state[:expires_at]
+        expires_at && to_time(expires_at) <= Time.now
+      end
+
+      def to_time(value)
+        return value.to_time if value.respond_to?(:to_time)
+
+        validate_timestamp(:expires_at, value)
+        Time.at(value)
+      end
+
+      # Ensures timestamp values are absolute points in time (Time instances or Unix epoch timestamps)
+      # rather than relative offsets (e.g., passing `expires_in: 3600`), which would otherwise evaluate
+      # to 1970 and cause continuous refresh loops.
+      def validate_timestamp(name, value)
+        return if value.respond_to?(:to_time)
+
+        if value.is_a?(Numeric)
+          return if value >= MIN_EPOCH_TIMESTAMP
+
+          raise ArgumentError, ":#{name} must be a Time or modern Unix epoch timestamp in seconds, not a relative offset (got #{value})"
+        end
+
+        raise ArgumentError, ":#{name} must be a Time or Integer Unix epoch timestamp (got #{value.inspect})"
+      end
+
+      def refresh_tokens(state = @token_state)
+        state ||= @token_state
+        if token_expired?(state)
+          @token_state = normalize_tokens(@oauth.refresh(state[:refresh_token]))
+        else
+          @token_state = state
+        end
+      end
+
+      def refresh_stale_tokens(state = @token_state)
+        state ||= @token_state
+        if state.equal?(@token_state) || state[:access_token] == @token_state[:access_token]
+          @token_state = normalize_tokens(@oauth.refresh(state[:refresh_token]))
+        else
+          @token_state = state
+        end
+      end
+
+      def refresh_after_401
+        synchronize(method(:refresh_stale_tokens))
+      end
+
+      def synchronize(refresh)
+        invoked = false
+        callable = ->(*args, &block) do
+          invoked = true
+          refresh.call(*args, &block)
+        end
+
+        result = @synchronize.call(callable, @shop)
+        raise RefreshNotCalledError, ":synchronize did not call refresh" unless invoked
+
+        @token_state = result if result.is_a?(Hash) && result.key?(:access_token)
+        @gql = ShopifyAPI::GraphQL::Tiny.new(@shop, @token_state[:access_token], @options)
+        @token_state
+      end
+
+      def normalize_tokens(tokens)
+        now = Time.now.to_i
+
+        {
+          :access_token => tokens["access_token"],
+          :expires_at => now + tokens["expires_in"],
+          :refresh_token => tokens["refresh_token"],
+          :refresh_expires_at => tokens["refresh_token_expires_in"] ? now + tokens["refresh_token_expires_in"] : nil
+        }
+      end
+
       def transform_keys(object, &transformer)
         case object
         when Hash
@@ -206,3 +351,6 @@ module ShopifyAPI
     end
   end
 end
+
+require "shopify_api/graphql/request/oauth/access_token"
+require "shopify_api/graphql/request/railtie" if defined?(Rails::Railtie)

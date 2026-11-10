@@ -221,4 +221,189 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
       }.to raise_error(described_class::NotFoundError, %r|\ANo record found for product with {"id"\s*=>\s*"gid://shopify/Product/1"}|)
     end
   end
+
+  describe "refreshing via :refresh option" do
+    before do
+      @oauth = ShopifyAPI::GraphQL::Request::OAuth::AccessToken.new("client-id", "client-secret", "test-shop")
+      allow(@oauth).to receive(:refresh).and_return(
+        "access_token" => "new-token",
+        "expires_in" => 3600,
+        "refresh_token" => "new-refresh-token",
+        "refresh_token_expires_in" => 7776000
+      )
+      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).and_return(@oauth)
+
+      @gql = ShopifyAPI::GraphQL::Tiny.new("test-shop", "old-token")
+      allow(@gql).to receive(:execute).and_return("data" => { "shop" => { "name" => "Test Shop" } })
+      allow(ShopifyAPI::GraphQL::Tiny).to receive(:new).and_return(@gql)
+    end
+
+    def request(options = nil)
+      described_class.new("test-shop", "old-token", options)
+    end
+
+    def refresh_options(synchronize = nil, overrides = nil)
+      {
+        :refresh => {
+          :client_id => "client-id",
+          :client_secret => "client-secret",
+          :expires_at => Time.now.to_i - 60,
+          :refresh_token => "refresh-token",
+          :refresh_expires_at => Time.now.to_i + 7776000,
+          :synchronize => synchronize || ->(refresh, shop) {
+            refresh.call(
+              :access_token => "db-token",
+              :expires_at => Time.now.to_i - 60,
+              :refresh_token => "db-refresh-token",
+              :refresh_expires_at => Time.now.to_i + 7776000
+            )
+          }
+        }.merge(overrides || {})
+      }
+    end
+
+    def unauthorized_then_success
+      calls = 0
+      allow(@gql).to receive(:execute) do
+        calls += 1
+        raise ShopifyAPI::GraphQL::Tiny::HTTPError.new("Unauthorized", "401") if calls == 1
+
+        { "data" => { "shop" => { "name" => "Test Shop" } } }
+      end
+    end
+
+    it "raises ArgumentError when refresh options are missing" do
+      expect {
+        request(:refresh => { :client_id => "client-id" })
+      }.to raise_error(ArgumentError, ":refresh requires client_secret, expires_at, refresh_token, refresh_expires_at, synchronize")
+    end
+
+    it "raises ArgumentError when :refresh is not a Hash" do
+      expect {
+        request(:refresh => true)
+      }.to raise_error(ArgumentError, ":refresh must be a Hash")
+    end
+
+    it "raises ArgumentError when :expires_at is a relative offset instead of an epoch timestamp" do
+      expect {
+        request(refresh_options(nil, :expires_at => 3600))
+      }.to raise_error(ArgumentError, %r|:expires_at must be a Time or modern Unix epoch timestamp in seconds, not a relative offset \(got 3600\)|)
+    end
+
+    it "raises ArgumentError when :refresh_expires_at is a relative offset instead of an epoch timestamp" do
+      expect {
+        request(refresh_options(nil, :refresh_expires_at => 7776000))
+      }.to raise_error(ArgumentError, %r|:refresh_expires_at must be a Time or modern Unix epoch timestamp in seconds, not a relative offset \(got 7776000\)|)
+    end
+
+    it "raises ArgumentError when :expires_at is not a Time or Numeric" do
+      expect {
+        request(refresh_options(nil, :expires_at => "invalid"))
+      }.to raise_error(ArgumentError, %r|:expires_at must be a Time or Integer Unix epoch timestamp \(got "invalid"\)|)
+    end
+
+    it "raises ArgumentError when state passed to refresh.call has a relative offset" do
+      options = refresh_options(->(refresh, shop) {
+        refresh.call(:access_token => "token", :expires_at => 3600)
+      })
+      expect {
+        request(options).execute("{ shop { name } }")
+      }.to raise_error(ArgumentError, %r|:expires_at must be a Time or modern Unix epoch timestamp in seconds, not a relative offset \(got 3600\)|)
+    end
+
+    it "refreshes an expired token before executing" do
+      request(refresh_options).execute("{ shop { name } }")
+
+      expect(@oauth).to have_received(:refresh).with("db-refresh-token")
+      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "new-token", anything)
+    end
+
+    it "accepts a Time instance for :expires_at" do
+      request(refresh_options(nil, :expires_at => Time.now - 60)).execute("{ shop { name } }")
+
+      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "new-token", anything)
+    end
+
+    it "uses the persisted token when another process refreshed first" do
+      options = refresh_options(->(refresh, shop) {
+        refresh.call(
+          :access_token => "fresh-db-token",
+          :expires_at => Time.now.to_i + 3600,
+          :refresh_token => "fresh-db-refresh-token",
+          :refresh_expires_at => Time.now.to_i + 7776000
+        )
+      })
+
+      request(options).execute("{ shop { name } }")
+
+      expect(@oauth).to_not have_received(:refresh)
+      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "fresh-db-token", anything)
+    end
+
+    it "passes the shop to the synchronize proc" do
+      shops = []
+      options = refresh_options(->(refresh, shop) {
+        shops << shop
+        refresh.call(
+          :access_token => "db-token",
+          :expires_at => Time.now.to_i - 60,
+          :refresh_token => "db-refresh-token",
+          :refresh_expires_at => Time.now.to_i + 7776000
+        )
+      })
+
+      request(options).execute("{ shop { name } }")
+
+      expect(shops).to eq ["test-shop"]
+    end
+
+    it "refreshes when refresh proc is called without arguments" do
+      options = refresh_options(->(refresh, shop) { refresh.call })
+      request(options).execute("{ shop { name } }")
+
+      expect(@oauth).to have_received(:refresh).with("refresh-token")
+      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "new-token", anything)
+    end
+
+    it "raises a RefreshNotCalledError when the synchronize proc does not call refresh" do
+      options = refresh_options(->(refresh, shop) {
+        # Does not call refresh
+      })
+
+      expect {
+        request(options).execute("{ shop { name } }")
+      }.to raise_error(described_class::RefreshNotCalledError, ":synchronize did not call refresh")
+    end
+
+    it "refreshes and retries once when the API returns 401" do
+      unauthorized_then_success
+
+      options = refresh_options(nil, :expires_at => Time.now.to_i + 3600, :refresh_token => "db-refresh-token")
+      options[:refresh][:synchronize] = ->(refresh, shop) {
+        refresh.call(
+          :access_token => "old-token",
+          :expires_at => Time.now.to_i + 3600,
+          :refresh_token => "db-refresh-token",
+          :refresh_expires_at => Time.now.to_i + 7776000
+        )
+      }
+
+      result = request(options).execute("{ shop { name } }")
+
+      expect(result).to eq(:data => { :shop => { :name => "Test Shop" } })
+      expect(@gql).to have_received(:execute).twice
+      expect(@oauth).to have_received(:refresh).once.with("db-refresh-token")
+    end
+
+    it "refreshes after 401 when refresh proc is called without arguments" do
+      unauthorized_then_success
+
+      options = refresh_options(->(refresh, shop) { refresh.call }, :expires_at => Time.now.to_i + 3600)
+      result = request(options).execute("{ shop { name } }")
+
+      expect(result).to eq(:data => { :shop => { :name => "Test Shop" } })
+      expect(@oauth).to have_received(:refresh).once.with("refresh-token")
+      expect(@gql).to have_received(:execute).twice
+    end
+  end
 end

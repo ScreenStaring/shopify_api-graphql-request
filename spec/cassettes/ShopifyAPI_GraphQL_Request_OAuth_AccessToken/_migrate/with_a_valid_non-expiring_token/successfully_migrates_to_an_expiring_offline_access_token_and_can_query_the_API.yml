@@ -1,0 +1,205 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://<SHOPIFY_DOMAIN>/admin/oauth/access_token
+    body:
+      encoding: US-ASCII
+      string: client_id=<SHOPIFY_CLIENT_API_KEY>&client_secret=<SHOPIFY_CLIENT_API_SECRET>&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&subject_token=<SHOPIFY_TOKEN>&subject_token_type=urn%3Ashopify%3Aparams%3Aoauth%3Atoken-type%3Aoffline-access-token&requested_token_type=urn%3Ashopify%3Aparams%3Aoauth%3Atoken-type%3Aoffline-access-token&expiring=1
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - application/json
+      User-Agent:
+      - ShopifyAPI::GraphQL::Request v0.0.2 (Ruby v3.3.5)
+      Content-Type:
+      - application/x-www-form-urlencoded
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Tue, 10 Nov 2026 01:13:33 GMT
+      Content-Type:
+      - application/json; charset=utf-8
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Shopify-Web-Pod:
+      - web-66c65747dd-v6ggl
+      Shopify-Web-Runtime:
+      - web
+      X-Dc:
+      - gcp-us-east1,gcp-us-east1,gcp-us-east1,gcp-us-central1,gcp-us-central1
+      X-Robots-Tag:
+      - noindex
+      Cross-Origin-Opener-Policy:
+      - noopener-allow-popups
+      Vary:
+      - Accept-Encoding,Accept, X-Requested-With, Sec-Fetch-Site
+      Referrer-Policy:
+      - origin-when-cross-origin
+      X-Frame-Options:
+      - DENY
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cf-Cache-Status:
+      - DYNAMIC
+      Cache-Control:
+      - no-store
+      Pragma:
+      - no-cache
+      X-Request-Id:
+      - 60d77ca0-a81c-4d17-a522-8001deacf6df-1794273212
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=63072000; includeSubDomains; preload
+      Set-Cookie:
+      - _merchant_essential=:AaHDBHpRAAEAumIYsoWgruSy3E3siPDEC-qFAhJWDszEracamGHtpH02EJMjOqyo2fEjJFtc7g:;
+        Max-Age=34560000; Path=/; HttpOnly; Secure; Priority=High; SameSite=Lax
+      - _secure_admin_session_id=67b70117f38fda59ea5c73f36921a531; path=/admin; expires=Thu,
+        10 Dec 2026 01:13:32 GMT; secure; HttpOnly; SameSite=Lax
+      - _secure_admin_session_id_csrf=67b70117f38fda59ea5c73f36921a531; path=/admin;
+        expires=Thu, 10 Dec 2026 01:13:32 GMT; secure; HttpOnly; SameSite=Lax; SameSite=Lax
+      - koa.sid.sig=neB3hy4ITYjnYokVU0mc3NItjtQ; path=/admin; expires=Wed, 11 Nov
+        2026 01:13:33 GMT; samesite=lax; secure; httponly
+      - koa.sid=0034b7dc-7630-4cb9-926c-d2ab9be44fe3; path=/admin; expires=Wed, 11
+        Nov 2026 01:13:33 GMT; samesite=lax; secure; httponly
+      Server-Timing:
+      - request_id;desc="60d77ca0-a81c-4d17-a522-8001deacf6df-1794273212"
+      - socket;dur=0;desc="Socket ready", headers;dur=174;desc="Headers", reused;desc="Socket
+        reused"
+      - upstream_processing;dur=132, upstream_verdict_flag_enabled;dur=0.272;desc="count",
+        upstream__y;desc="fb1e168b-7625-4792-abdc-b8817a34f8dc", upstream__s;desc="97bd6505-4f8f-4360-9246-e58f3ad51b3b",
+        upstream__ye;desc="1825830812", upstream__se;desc="1794275012"
+      Report-To:
+      - '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=Yg7hsM0SXU3H%2FwBwA7WyGaEi1ggznFfm2%2FtXVfLaIf7nYhOFZleFv2%2FrbhXY5ggNdZJ55yETjdDIIprbTt1jNMpSzdskfVxlNuVITSQGKoBgWjKnTPU%2Fa8RbpBjveb5C%2Bac%2FV2ZA"}]}'
+      Nel:
+      - '{"report_to":"cf-nel","success_fraction":0.01,"max_age":604800}'
+      X-Content-Type-Options:
+      - nosniff
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Content-Security-Policy:
+      - default-src 'none';upgrade-insecure-requests;report-to shopify-csp
+      Reporting-Endpoints:
+      - shopify-csp="/csp-report?source%5Baction%5D=access_token&source%5Bapp%5D=Shopify&source%5Bcontroller%5D=admin%2Foauth&source%5Bsection%5D=admin_api&source%5Buuid%5D=60d77ca0-a81c-4d17-a522-8001deacf6df-1794273212"
+      Cf-Ray:
+      - a58131fbfc0884fb-EWR
+    body:
+      encoding: ASCII-8BIT
+      string: '{"access_token":"<SHOPIFY_ACCESS_TOKEN>","scope":"read_products,write_script_tags,write_themes","expires_in":3599,"refresh_token":"<SHOPIFY_REFRESH_TOKEN>","refresh_token_expires_in":7775999}'
+  recorded_at: Tue, 10 Nov 2026 01:13:33 GMT
+- request:
+    method: post
+    uri: https://<SHOPIFY_DOMAIN>/admin/api/graphql.json
+    body:
+      encoding: UTF-8
+      string: '{"query":"{ shop { name } }"}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - ShopifyAPI::GraphQL::Tiny v1.0.1 (Ruby v3.3.5)
+      Content-Type:
+      - application/json
+      X-Shopify-Access-Token:
+      - "<SHOPIFY_ACCESS_TOKEN>"
+      X-Graphql-Cost-Include-Fields:
+      - 'true'
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Tue, 10 Nov 2026 01:13:33 GMT
+      Content-Type:
+      - application/json; charset=utf-8
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Vary:
+      - Accept-Encoding,Sec-Fetch-Site
+      Referrer-Policy:
+      - origin-when-cross-origin
+      X-Frame-Options:
+      - DENY
+      X-Stats-Userid:
+      - ''
+      X-Stats-Apiclientid:
+      - '88881594369'
+      X-Stats-Apipermissionid:
+      - '629017870395'
+      X-Shopify-Api-Version:
+      - 2026-01
+      Content-Language:
+      - en
+      Set-Cookie:
+      - __cf_bm=ge_mjV6nOupuNyWyD8NrFVaca9dDbQpVspNyYfoSvIE-1794273213.1042814-1.0.1.1-INBkKSeMVwTdbAMIXRKLK4ewskvg6Zs_ku35jjpBRcEEyyzgcpMhC5udfG8bqfaQTQr.aQdfGXTnTmYHlAfedoXXySfgazLMl.SDvTR0KjtTJxNDdicPVL3sHAOICMze;
+        HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=myshopify.com;
+        Expires=Tue, 10 Nov 2026 01:43:33 GMT
+      X-Shopify-Api-Gql-Operation-Signature:
+      - 45a15be57feb00aede056573d3c390213f9e0c116a2b56ba201120ade07df56a
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cf-Cache-Status:
+      - DYNAMIC
+      X-Shopify-Api-Gql-Engine:
+      - cardinal
+      X-Dc:
+      - gcp-us-east1,gcp-us-central1,gcp-us-central1
+      X-Request-Id:
+      - 196bc149-4550-47cc-b0bf-cf1b59eb0033-1794273213
+      Strict-Transport-Security:
+      - max-age=7889238
+      Server-Timing:
+      - processing;dur=64, verdict_flag_enabled;desc="count=7";dur=0.416, graphql;desc="admin/query/other",
+        _y;desc="8b0b36dc-a130-42a6-8448-3a7d06eca2f3", _s;desc="40ca4276-ec1b-4fb2-abc4-1efdc74c358e",
+        _ye;desc="1825830813", _se;desc="1794275013"
+      Report-To:
+      - '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=f4xrLBnxPJDcElQq3wNsnLzPxH2tTXab46H%2FBWPOyjqquGMR1dbZcc3%2BHExy2czRN%2Bdh14%2BvYbT%2BMu7nwDLKL3MtlcZJ%2FtbuB0xB2gCMkzhkHpJpheIaDc7PLAqfI%2FFsLXaseUgH"}]}'
+      Server:
+      - cloudflare
+      Nel:
+      - '{"report_to":"cf-nel","success_fraction":0.01,"max_age":604800}'
+      X-Content-Type-Options:
+      - nosniff
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Content-Security-Policy:
+      - 'default-src ''self'' data: blob: ''unsafe-inline'' ''unsafe-eval'' https://*
+        shopify-pos://*; child-src ''self'' https://* shopify-pos://*; connect-src
+        ''self'' wss://* https://*; frame-ancestors ''none''; img-src ''self'' data:
+        blob: https:; script-src https://cdn.shopify.com https://cdn.shopifycdn.net
+        https://checkout.pci.shopifyinc.com https://checkout.pci.shopifyinc.com/build/27bcf73/card_fields.js
+        https://api.stripe.com https://mpsnare.iesnare.com https://appcenter.intuit.com
+        https://www.paypal.com https://js.braintreegateway.com https://c.paypal.com
+        https://maps.googleapis.com https://www.google-analytics.com https://v.shopify.com
+        ''self'' ''unsafe-inline'' ''unsafe-eval''; upgrade-insecure-requests; report-uri
+        /csp-report?source%5Baction%5D=query&source%5Bapp%5D=Shopify&source%5Bcontroller%5D=admin%2Fgraphql&source%5Bsection%5D=admin_api&source%5Buuid%5D=196bc149-4550-47cc-b0bf-cf1b59eb0033-1794273213;
+        report-to shopify-csp'
+      Reporting-Endpoints:
+      - shopify-csp="/csp-report?source%5Baction%5D=query&source%5Bapp%5D=Shopify&source%5Bcontroller%5D=admin%2Fgraphql&source%5Bsection%5D=admin_api&source%5Buuid%5D=196bc149-4550-47cc-b0bf-cf1b59eb0033-1794273213"
+      Cf-Ray:
+      - a58131fdec81f788-EWR
+    body:
+      encoding: ASCII-8BIT
+      string: '{"data":{"shop":{"name":"xqadf-123"}},"extensions":{"cost":{"requestedQueryCost":1,"actualQueryCost":1,"throttleStatus":{"maximumAvailable":2000.0,"currentlyAvailable":1999,"restoreRate":100.0},"fields":[{"path":["shop","name"],"definedCost":0,"requestedTotalCost":0,"requestedChildrenCost":0},{"path":["shop"],"definedCost":1,"requestedTotalCost":1,"requestedChildrenCost":0}]}}}'
+  recorded_at: Tue, 10 Nov 2026 01:13:33 GMT
+recorded_with: VCR 6.4.1

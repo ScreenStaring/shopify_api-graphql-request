@@ -1,0 +1,98 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://<SHOPIFY_DOMAIN>/admin/oauth/access_token
+    body:
+      encoding: US-ASCII
+      string: client_id=<SHOPIFY_CLIENT_API_KEY>&client_secret=<SHOPIFY_CLIENT_API_SECRET>&grant_type=refresh_token&refresh_token=invalid_refresh_token_12345
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - application/json
+      User-Agent:
+      - ShopifyAPI::GraphQL::Request v0.0.2 (Ruby v3.3.5)
+      Content-Type:
+      - application/x-www-form-urlencoded
+  response:
+    status:
+      code: 401
+      message: Unauthorized
+    headers:
+      Date:
+      - Tue, 10 Nov 2026 07:15:00 GMT
+      Content-Type:
+      - application/json; charset=utf-8
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Shopify-Web-Pod:
+      - web-66c65747dd-2r7c7
+      Shopify-Web-Runtime:
+      - web
+      X-Dc:
+      - gcp-us-east1,gcp-us-east1,gcp-us-east1,gcp-us-central1,gcp-us-central1
+      X-Robots-Tag:
+      - noindex
+      Cross-Origin-Opener-Policy:
+      - noopener-allow-popups
+      Referrer-Policy:
+      - origin-when-cross-origin
+      X-Frame-Options:
+      - DENY
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cf-Cache-Status:
+      - DYNAMIC
+      X-Request-Id:
+      - 1caca853-1d53-4895-907b-3f0e0b64907a-1794294900
+      Server:
+      - cloudflare
+      Vary:
+      - Accept, X-Requested-With
+      Strict-Transport-Security:
+      - max-age=63072000; includeSubDomains; preload
+      Set-Cookie:
+      - _merchant_essential=:AaHET2iVAAEA0-dEBjYvmWClU2GZlBE1UUpKb5abu9YKKmIrKfM3KaXBaeNB6RW7VCLICnA2jw:;
+        Max-Age=34560000; Path=/; HttpOnly; Secure; Priority=High; SameSite=Lax
+      - _secure_admin_session_id=154f61a93121dc749ace2767811ab0a1; path=/admin; expires=Thu,
+        10 Dec 2026 07:15:00 GMT; secure; HttpOnly; SameSite=Lax
+      - _secure_admin_session_id_csrf=154f61a93121dc749ace2767811ab0a1; path=/admin;
+        expires=Thu, 10 Dec 2026 07:15:00 GMT; secure; HttpOnly; SameSite=Lax; SameSite=Lax
+      - koa.sid.sig=tYQXFoOfxdgiP3JAp0x2f_Qf3fc; path=/admin; expires=Wed, 11 Nov
+        2026 07:15:00 GMT; samesite=lax; secure; httponly
+      - koa.sid=38cee0a5-3bbd-4289-98ce-eac52c190218; path=/admin; expires=Wed, 11
+        Nov 2026 07:15:00 GMT; samesite=lax; secure; httponly
+      Server-Timing:
+      - request_id;desc="1caca853-1d53-4895-907b-3f0e0b64907a-1794294900"
+      - socket;dur=0;desc="Socket ready", headers;dur=89;desc="Headers", reused;desc="Socket
+        reused"
+      - upstream_processing;dur=40, upstream_verdict_flag_enabled;dur=0.195;desc="count",
+        upstream__y;desc="c59a26c3-66d2-4d0c-aedd-fb27966e6725", upstream__s;desc="29d04d65-b651-4545-ab05-c04cda4bbfa8",
+        upstream__ye;desc="1825852500", upstream__se;desc="1794296700"
+      Report-To:
+      - '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=fQPlQ2Sp1%2FMxm%2BUXvCV9HqWGc0e9hdUuLAvZMm84TC2Vx5C%2FAZzqSm1hIcvXBWnvsxBo5%2BgYdaVg1m29r0Bpek6DfeZTNCvtzpKAvRE%2Fdet%2FfYQbtqpmGujVzf%2FlZW2MyHujBPJh"}]}'
+      Nel:
+      - '{"report_to":"cf-nel","success_fraction":0.01,"max_age":604800}'
+      X-Content-Type-Options:
+      - nosniff
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Content-Security-Policy:
+      - default-src 'none';upgrade-insecure-requests;report-to shopify-csp
+      Reporting-Endpoints:
+      - shopify-csp="/csp-report?source%5Baction%5D=access_token&source%5Bapp%5D=Shopify&source%5Bcontroller%5D=admin%2Foauth&source%5Bsection%5D=admin_api&source%5Buuid%5D=1caca853-1d53-4895-907b-3f0e0b64907a-1794294900"
+      Cf-Ray:
+      - a5834379b85558af-EWR
+    body:
+      encoding: UTF-8
+      string: '{"error":"invalid_grant","error_description":"This request requires
+        an active refresh_token"}'
+  recorded_at: Tue, 10 Nov 2026 07:15:00 GMT
+recorded_with: VCR 6.4.1

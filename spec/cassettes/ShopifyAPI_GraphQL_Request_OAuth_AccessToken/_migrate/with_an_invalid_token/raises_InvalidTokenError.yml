@@ -1,0 +1,98 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://<SHOPIFY_DOMAIN>/admin/oauth/access_token
+    body:
+      encoding: US-ASCII
+      string: client_id=<SHOPIFY_CLIENT_API_KEY>&client_secret=<SHOPIFY_CLIENT_API_SECRET>&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&subject_token=invalid_token_12345&subject_token_type=urn%3Ashopify%3Aparams%3Aoauth%3Atoken-type%3Aoffline-access-token&requested_token_type=urn%3Ashopify%3Aparams%3Aoauth%3Atoken-type%3Aoffline-access-token&expiring=1
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - application/json
+      User-Agent:
+      - ShopifyAPI::GraphQL::Request v0.0.2 (Ruby v3.3.5)
+      Content-Type:
+      - application/x-www-form-urlencoded
+  response:
+    status:
+      code: 400
+      message: Bad Request
+    headers:
+      Date:
+      - Tue, 10 Nov 2026 01:13:33 GMT
+      Content-Type:
+      - application/json; charset=utf-8
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Shopify-Web-Pod:
+      - web-66c65747dd-dlwd9
+      Shopify-Web-Runtime:
+      - web
+      X-Dc:
+      - gcp-us-east1,gcp-us-east1,gcp-us-east1,gcp-us-central1,gcp-us-central1
+      X-Robots-Tag:
+      - noindex
+      Cross-Origin-Opener-Policy:
+      - noopener-allow-popups
+      Referrer-Policy:
+      - origin-when-cross-origin
+      X-Frame-Options:
+      - DENY
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cf-Cache-Status:
+      - DYNAMIC
+      X-Request-Id:
+      - 1ad0615c-d53a-4449-bc13-0d87a717f06c-1794273213
+      Server:
+      - cloudflare
+      Vary:
+      - Accept, X-Requested-With
+      Strict-Transport-Security:
+      - max-age=63072000; includeSubDomains; preload
+      Set-Cookie:
+      - _merchant_essential=:AaHDBHvvAAEAa9K4R0JYcZeIraR-4GY7TI0ojT9Wa8ST-lkfz8uW8-f-SMV_aIM5bsu_Hhbr9g:;
+        Max-Age=34560000; Path=/; HttpOnly; Secure; Priority=High; SameSite=Lax
+      - _secure_admin_session_id=1d28137fa33c383cdbdb31d60e3b1be8; path=/admin; expires=Thu,
+        10 Dec 2026 01:13:33 GMT; secure; HttpOnly; SameSite=Lax
+      - _secure_admin_session_id_csrf=1d28137fa33c383cdbdb31d60e3b1be8; path=/admin;
+        expires=Thu, 10 Dec 2026 01:13:33 GMT; secure; HttpOnly; SameSite=Lax; SameSite=Lax
+      - koa.sid.sig=JGfmZ7ODxa_zERc5zXMt0XfGmQQ; path=/admin; expires=Wed, 11 Nov
+        2026 01:13:33 GMT; samesite=lax; secure; httponly
+      - koa.sid=54b6b4da-0160-4189-8eee-61ecb425c1c4; path=/admin; expires=Wed, 11
+        Nov 2026 01:13:33 GMT; samesite=lax; secure; httponly
+      Server-Timing:
+      - request_id;desc="1ad0615c-d53a-4449-bc13-0d87a717f06c-1794273213"
+      - socket;dur=0;desc="Socket ready", headers;dur=72;desc="Headers", reused;desc="Socket
+        reused"
+      - upstream_processing;dur=32, upstream_verdict_flag_enabled;dur=0.125;desc="count",
+        upstream__y;desc="5e1fa9d0-4ec5-40fc-a3dd-537fd0db8771", upstream__s;desc="b0581cb5-761a-4903-804f-9378fdc9344e",
+        upstream__ye;desc="1825830813", upstream__se;desc="1794275013"
+      Report-To:
+      - '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=xndc3b2UjJvoTPjyW0QbIQzW0nCRbCA%2Bg4jZ5LbUgLPDRZ4IIByxUKaxZoTpd%2FYOh5CH%2BD2tU1AIBAQR%2BT%2Byp0%2BSptzuka3QBeb19Y7CIWw2j1MlJnA%2BBLfoEhzNVQfT0nsz30CM"}]}'
+      Nel:
+      - '{"report_to":"cf-nel","success_fraction":0.01,"max_age":604800}'
+      X-Content-Type-Options:
+      - nosniff
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Content-Security-Policy:
+      - default-src 'none';upgrade-insecure-requests;report-to shopify-csp
+      Reporting-Endpoints:
+      - shopify-csp="/csp-report?source%5Baction%5D=access_token&source%5Bapp%5D=Shopify&source%5Bcontroller%5D=admin%2Foauth&source%5Bsection%5D=admin_api&source%5Buuid%5D=1ad0615c-d53a-4449-bc13-0d87a717f06c-1794273213"
+      Cf-Ray:
+      - a58131ff2d697ce4-EWR
+    body:
+      encoding: UTF-8
+      string: '{"error":"invalid_subject_token","error_description":"Token exchange
+        cannot be performed due to an invalid subject token."}'
+  recorded_at: Tue, 10 Nov 2026 01:13:33 GMT
+recorded_with: VCR 6.4.1
