@@ -222,7 +222,7 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
     end
   end
 
-  describe "refreshing via :refresh option" do
+  describe "token refreshing via the :refresh option" do
     before do
       @oauth = ShopifyAPI::GraphQL::Request::OAuth::AccessToken.new("client-id", "client-secret", "test-shop")
       allow(@oauth).to receive(:refresh).and_return(

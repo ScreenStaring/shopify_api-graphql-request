@@ -217,23 +217,22 @@ Because refreshed tokens must be persisted for future requests, `:synchronize` i
 #### Multi-Process Concurrency
 
 In multi-process environments multiple processes may attempt to refresh an expired token simultaneously. To prevent duplicate refresh requests and token invalidation
-pass the freshly read storage state to `refresh.call(state)`:
+pass the freshly read storage state to `refresh`:
 
 ```rb
 :synchronize => ->(refresh, shop) do
-  Store.transaction do
-    shop = Shop.find_by!(:shopify_domain => shopify_domain)
-    shop.with_lock do
-      # Pass the latest storage state. If another worker already refreshed it refresh.call returns the fresh state without hitting Shopify.
-      new_state = refresh.call(
-        :access_token => shop.access_token,
-        :expires_at => shop.expires_at,
-        :refresh_token => shop.refresh_token,
-        :refresh_expires_at => shop.refresh_expires_at
-      )
+  shop = Shop.find_by!(:shopify_domain => shopify_domain)
+  shop.with_lock do
+    # Pass the latest token state.
+    # If another worker already refreshed it refresh.call returns the fresh state without hitting Shopify.
+    new_state = refresh.call(
+      :access_token => shop.access_token,
+      :expires_at => shop.expires_at,
+      :refresh_token => shop.refresh_token,
+      :refresh_expires_at => shop.refresh_expires_at
+    )
 
-      # save new_state
-    end
+    # save new_state
   end
 end
 ```
@@ -278,6 +277,32 @@ store.update!(
 ```
 
 If the token is invalid or cannot be migrated, a `ShopifyAPI::GraphQL::Request::OAuth::AccessToken::InvalidTokenError` will be raised.
+
+#### Rake Task
+
+You can also migrate tokens using the provided rake task:
+
+```sh
+# Migrate a single shop:
+bundle exec rake shopify:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y SHOP=my-shop TOKEN=shpat_...
+
+# Migrate from a CSV file (with "shop" and "token" columns). HANDLER is required, see below:
+bundle exec rake shopify:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
+```
+
+A single shop's tokens are always printed. `HANDLER=file.rb` is required with `FILE` (nothing is printed for CSV) and optional with `SHOP`. Use it to persist the new tokens. The file is `load`ed and must define `update_token(shop, tokens)`, which is called with the
+shop and the return value of `#migrate`:
+
+```rb
+# update_token.rb
+def update_token(shop, tokens)
+  Shop.find_by!(:domain => shop).update!(:access_token => tokens["access_token"], ...)
+end
+```
+
+```sh
+bundle exec rake shopify:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
+```
 
 #### Recovering a Lost Response
 
