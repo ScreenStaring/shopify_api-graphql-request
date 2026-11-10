@@ -13,7 +13,7 @@ module ShopifyAPI
         # Migrates legacy non-expiring offline access tokens to expiring ones for
         # a single shop or for many shops listed in a CSV file.
         #
-        # Backs the +shopify:migrate_access_tokens+ rake task.
+        # Backs the +shopify_api:graphql:request:migrate_access_tokens+ rake task.
         #
         class AccessTokenMigrator
           HANDLER_METHOD = :update_token

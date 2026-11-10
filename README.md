@@ -284,10 +284,10 @@ You can also migrate tokens using the provided rake task:
 
 ```sh
 # Migrate a single shop:
-bundle exec rake shopify:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y SHOP=my-shop TOKEN=shpat_...
+bundle exec rake shopify_api:graphql:request:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y SHOP=my-shop TOKEN=shpat_...
 
 # Migrate from a CSV file (with "shop" and "token" columns). HANDLER is required, see below:
-bundle exec rake shopify:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
+bundle exec rake shopify_api:graphql:request:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
 ```
 
 A single shop's tokens are always printed. `HANDLER=file.rb` is required with `FILE` (nothing is printed for CSV) and optional with `SHOP`. Use it to persist the new tokens. The file is `load`ed and must define `update_token(shop, tokens)`, which is called with the
@@ -301,7 +301,7 @@ end
 ```
 
 ```sh
-bundle exec rake shopify:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
+bundle exec rake shopify_api:graphql:request:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
 ```
 
 #### Recovering a Lost Response

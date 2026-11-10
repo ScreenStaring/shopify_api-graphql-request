@@ -2,7 +2,7 @@
 
 require "rake"
 
-RSpec.describe "shopify:migrate_access_tokens" do
+RSpec.describe "shopify_api:graphql:request:migrate_access_tokens" do
   before(:all) do
     Rake.application.rake_require("tasks/shopify", [File.expand_path("../../lib", __dir__)])
   end
@@ -17,7 +17,7 @@ RSpec.describe "shopify:migrate_access_tokens" do
   end
 
   before do
-    @task = Rake::Task["shopify:migrate_access_tokens"]
+    @task = Rake::Task["shopify_api:graphql:request:migrate_access_tokens"]
     @task.reenable
   end
 

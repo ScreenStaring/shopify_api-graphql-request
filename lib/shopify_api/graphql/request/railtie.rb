@@ -7,7 +7,7 @@ module ShopifyAPI
         load File.expand_path("../../../tasks/shopify.rake", __dir__)
 
         # Task is also usable outside Rails, so only add the dep here
-        Rake::Task["shopify:migrate_access_tokens"].enhance([:environment])
+        Rake::Task["shopify_api:graphql:request:migrate_access_tokens"].enhance([:environment])
       end
     end
   end
