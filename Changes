@@ -1,3 +1,7 @@
+v0.1.1  2026-11-11
+--------------------
+Improve robustness of token migration task when using a spreadsheet
+
 v0.1.0  2026-11-10
 --------------------
 Add OAuth::AccessToken to support Shopify expiring tokens
