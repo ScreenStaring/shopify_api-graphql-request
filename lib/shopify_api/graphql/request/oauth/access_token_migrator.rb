@@ -58,11 +58,15 @@ module ShopifyAPI
           #
           # === Returns
           #
-          # [Array<Hash>] One +{ :shop => String, :result => Hash }+ per migrated shop
+          # [Array<Hash>] One status per shop, in input order:
+          #               +{ :shop => String, :result => Hash, :error => nil }+ or
+          #               +{ :shop => String, :result => nil, :error => String }+.
+          #               Per-shop errors (+StandardError+, including those raised by the handler) are
+          #               rescued so one failure does not stop the rest.
           #
           # === Errors
           #
-          # ArgumentError, AccessToken::InvalidTokenError, AccessToken::Error
+          # ArgumentError for invalid input (before any shop is processed)
           #
           def run
             pairs = @shop ? [single_shop_and_token] : rows
@@ -111,7 +115,9 @@ module ShopifyAPI
 
             call_handler(result, shop) if @handler
 
-            { :shop => shop, :result => result }
+            { :shop => shop, :result => result, :error => nil }
+          rescue StandardError => e
+            { :shop => shop, :result => nil, :error => "#{e.class}: #{e.message}" }
           end
 
           def call_handler(result, shop)

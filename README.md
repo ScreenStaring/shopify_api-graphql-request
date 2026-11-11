@@ -290,8 +290,8 @@ bundle exec rake shopify_api:graphql:request:migrate_access_tokens SHOPIFY_API_K
 bundle exec rake shopify_api:graphql:request:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
 ```
 
-A single shop's tokens are always printed. `HANDLER=file.rb` is required with `FILE` (nothing is printed for CSV) and optional with `SHOP`. Use it to persist the new tokens. The file is `load`ed and must define `update_token(shop, tokens)`, which is called with the
-shop and the return value of `#migrate`:
+A single shop's tokens are always printed. `HANDLER=file.rb` is required with `FILE` (nothing is printed for CSV) and optional with `SHOP`. Use it to persist the new tokens.
+The file is `load`ed and must define `update_token(shop, tokens)`, which is called with the shop and the return value of `#migrate`:
 
 ```rb
 # update_token.rb
@@ -303,6 +303,8 @@ end
 ```sh
 bundle exec rake shopify_api:graphql:request:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
 ```
+
+A summary of succeeded and failed shops (with the error for each failure) is printed when done. A failure for one shop does not stop the others; the task exits with status 1 if any shop failed.
 
 #### Recovering a Lost Response
 

@@ -80,7 +80,7 @@ RSpec.describe ShopifyAPI::GraphQL::Request::OAuth::AccessTokenMigrator do
     it "migrates and prints the result" do
       expect(@client).to receive(:migrate).with("legacy").and_return(RESULT)
 
-      expect(migrator(:shop => "my-shop", :token => "legacy").run).to eq([{ :shop => "my-shop", :result => RESULT }])
+      expect(migrator(:shop => "my-shop", :token => "legacy").run).to eq([{ :shop => "my-shop", :result => RESULT, :error => nil }])
       expect(@out.string).to include("shpca_123")
     end
 
@@ -113,6 +113,47 @@ RSpec.describe ShopifyAPI::GraphQL::Request::OAuth::AccessTokenMigrator do
       file.unlink
       handler.unlink
       $migrated = nil
+    end
+  end
+
+  describe "per-shop errors" do
+    after do
+      Object.send(:remove_method, :update_token) if Object.private_method_defined?(:update_token)
+    end
+
+    it "rescues errors, keeps going, and reports status per shop" do
+      file = tempfile("shops.csv", "shop,token\nshop1,tok_a\nshop2,tok_b\n")
+      handler = tempfile("handler.rb", "def update_token(shop, result); end\n")
+      client1 = access_token("shop1")
+      client2 = access_token("shop2")
+
+      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).with("id", "secret", "shop1").and_return(client1)
+      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).with("id", "secret", "shop2").and_return(client2)
+      allow(client1).to receive(:migrate).and_raise(ShopifyAPI::GraphQL::Request::OAuth::AccessToken::InvalidTokenError, "bad token")
+      allow(client2).to receive(:migrate).and_return(RESULT)
+
+      statuses = migrator(:file => file.path, :handler => handler.path).run
+
+      expect(statuses).to eq([
+        { :shop => "shop1", :result => nil, :error => "ShopifyAPI::GraphQL::Request::OAuth::AccessToken::InvalidTokenError: bad token" },
+        { :shop => "shop2", :result => RESULT, :error => nil }
+      ])
+    ensure
+      file.close!
+      handler.close!
+    end
+
+    it "reports handler errors as failures" do
+      client = access_token("my-shop")
+      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).and_return(client)
+      allow(client).to receive(:migrate).and_return(RESULT)
+
+      file = tempfile("handler.rb", "def update_token(shop, result); raise 'db down'; end\n")
+      statuses = migrator(:shop => "my-shop", :token => "legacy", :handler => file.path).run
+
+      expect(statuses).to eq([{ :shop => "my-shop", :result => nil, :error => "RuntimeError: db down" }])
+    ensure
+      file.close!
     end
   end
 

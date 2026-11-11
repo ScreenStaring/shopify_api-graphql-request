@@ -15,7 +15,7 @@ namespace :shopify_api do
         abort "SHOPIFY_API_SECRET required" if client_secret.empty?
 
         begin
-          ShopifyAPI::GraphQL::Request::OAuth::AccessTokenMigrator.new(
+          statuses = ShopifyAPI::GraphQL::Request::OAuth::AccessTokenMigrator.new(
             client_id,
             client_secret,
             :shop => ENV["SHOP"],
@@ -26,6 +26,16 @@ namespace :shopify_api do
         rescue ArgumentError => e
           abort e.message
         end
+
+        failed, succeeded = statuses.partition { |status| status[:error] }
+
+        puts "Succeeded (#{succeeded.size}):"
+        succeeded.each { |status| puts "  #{status[:shop]}" }
+
+        puts "Failed (#{failed.size}):"
+        failed.each { |status| puts "  #{status[:shop]}: #{status[:error]}" }
+
+        exit 1 unless failed.empty?
       end
     end
   end
