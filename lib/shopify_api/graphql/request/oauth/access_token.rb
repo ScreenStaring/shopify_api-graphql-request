@@ -3,7 +3,10 @@ require "json"
 require "net/http"
 require "uri"
 
+require "shopify_api/graphql/request/oauth"
+require "shopify_api/graphql/request/shop"
 require "shopify_api/graphql/request/version"
+require "shopify_api/graphql/request/oauth/client_assertion"
 
 module ShopifyAPI
   module GraphQL
@@ -19,18 +22,16 @@ module ShopifyAPI
           TOKEN_EXCHANGE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:token-exchange"
           OFFLINE_TOKEN_TYPE = "urn:shopify:params:oauth:token-type:offline-access-token"
           REFRESH_TOKEN_GRANT_TYPE = "refresh_token"
-
-          TOKEN_ENDPOINT = "https://%s/admin/oauth/access_token"
+          CLIENT_CREDENTIALS_GRANT_TYPE = "client_credentials"
+          CLIENT_ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
 
           USER_AGENT = "ShopifyAPI::GraphQL::Request v#{VERSION} (Ruby v#{RUBY_VERSION})"
-
-          SHOPIFY_DOMAIN = ".myshopify.com"
 
           ##
           # === Arguments
           #
           # [client_id (String)] App's client ID
-          # [client_secret (String)] App's client secret
+          # [client_secret (String|ClientAssertion)] App's client secret or, for application-only access tokens, a ClientAssertion
           # [shop (String)] Shopify domain to make requests against
           # [options (Hash)] Client options. Optional.
           #
@@ -46,12 +47,11 @@ module ShopifyAPI
           #
           def initialize(client_id, client_secret, shop, options = nil)
             raise ArgumentError, "client_id required" if client_id.to_s.strip.empty?
-            raise ArgumentError, "client_secret required" if client_secret.to_s.strip.empty?
-            raise ArgumentError, "shop required" if shop.to_s.strip.empty?
+            raise ArgumentError, "client_secret required" if !client_secret.is_a?(ClientAssertion) && client_secret.to_s.strip.empty?
 
             @client_id = client_id
             @client_secret = client_secret
-            @domain = shopify_domain(shop)
+            @domain = Shop.new(shop)
 
             options ||= {}
 
@@ -120,6 +120,35 @@ module ShopifyAPI
             )
           end
 
+          ##
+          # Request an access token using the client credentials grant.
+          # Uses a signed client assertion if the client was created with a ClientAssertion,
+          # otherwise the client secret.
+          #
+          # === Returns
+          #
+          # [Hash] The token response. Unmodified.
+          #
+          # === Errors
+          #
+          # Error
+          #
+          def client_credentials
+            params = {
+              :client_id => @client_id,
+              :grant_type => CLIENT_CREDENTIALS_GRANT_TYPE
+            }
+
+            if @client_secret.is_a?(ClientAssertion)
+              params[:client_assertion_type] = CLIENT_ASSERTION_TYPE
+              params[:client_assertion] = @client_secret.to_jwt(@domain)
+            else
+              params[:client_secret] = @client_secret
+            end
+
+            request(params)
+          end
+
           private
 
           def request(params)
@@ -175,12 +204,6 @@ module ShopifyAPI
             return body unless body.is_a?(Hash)
 
             body["error_description"] || body["error"] || body.to_s
-          end
-
-          def shopify_domain(host)
-            domain = host.sub(%r{\Ahttps?://}i, "")
-            domain << SHOPIFY_DOMAIN unless domain.end_with?(SHOPIFY_DOMAIN)
-            domain
           end
         end
       end

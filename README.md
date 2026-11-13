@@ -92,6 +92,8 @@ class ShopifyProduct < ShopifyAPI::GraphQL::Request
   end
 
   def list
+    return paginate(LIST) unless block_given?
+
     paginate(LIST) { |page| yield page.dig(:data, :products, :edges) }
   end
 end
@@ -176,18 +178,36 @@ class ShopifyProduct < ShopifyAPI::GraphQL::Request
 end
 ```
 
-### Auto-Refreshing Expiring Access Tokens
+## Access Tokens
 
-`ShopifyAPI::GraphQL::Request` can automatically refresh Shopify's expiring offline access tokens before making a request, and automatically retry once on `401 Unauthorized` responses.
+The following types of access tokens are supported:
 
-To enable auto-refresh, pass the `:refresh` option:
+- Expiring offline access tokens
+- Expiring offline application-only access tokens
+- Non-expiring offline access tokens
+
+Several Rake tasks are included to assist with token-related processes. See [Rake Tasks](#rake-tasks).
+
+Access tokens are managed by the `ShopifyAPI::GraphQL::Request::OAuth::AccessToken` class.
+
+`ShopifyAPI::GraphQL::Request` can automatically refresh expiring offline access tokens before making a request, and automatically retry once on 401 Unauthorized response.
+To enable auto-refresh use the `:refresh` option:
+
+```rb
+ShopifyAPI::GraphQL::Request.new(shop, token, :refresh => { ... })
+```
+The options provided to `:refresh` depend on the token type. See the appropriate token's section below for more information.
+
+### Expiring Offline Access Tokens
+
+To enable auto-refresh of expiring tokens use the `:refresh` option with the following keys:
 
 ```rb
 request = ShopifyAPI::GraphQL::Request.new(shop, token, :refresh => {
   :client_id => SHOPIFY_CLIENT_ID,
   :client_secret => SHOPIFY_CLIENT_SECRET,
   :refresh_token => refresh_token,
-  :expires_at => expires_at, # Absolute Time or Integer Unix epoch timestamp
+  :expires_at => expires_at,                 # Absolute Time or Integer Unix epoch timestamp
   :refresh_expires_at => refresh_expires_at, # Absolute Time or Integer Unix epoch timestamp
   :synchronize => ->(refresh, shopify_domain) do
     shop = Shop.find_by!(:shopify_domain => shopify_domain)
@@ -237,9 +257,84 @@ pass the freshly read storage state to `refresh`:
 end
 ```
 
+### Expiring Offline Application-Only Access Tokens
+
+Two token types are supported:
+
+- Client assertions for public apps
+- Client credentials for stores in your own organization
+
+#### Using a Client Assertion
+
+This requires a public/private key pair and uploading the public key as a JWK to Shopify.
+See [Shopify's documentation](https://shopify.dev/docs/apps/build/authentication-authorization/application-only-access-tokens).
+
+Once you have your keys and have uploaded the JWK to Shopify you can use the private key to create a `ClientAssertion`. This will be used as the `secret` when calling `AccessToken.new`:
+
+```rb
+assertion = ShopifyAPI::GraphQL::Request::OAuth::ClientAssertion.new(
+  SHOPIFY_CLIENT_ID,
+  File.read("your_private_key.pem"), # PEM String, OpenSSL::PKey::RSA, or OpenSSL::PKey::EC
+  KEY_ID                             # ID of the public key registered with Shopify
+)
+
+client = ShopifyAPI::GraphQL::Request::OAuth::AccessToken.new(SHOPIFY_CLIENT_ID, assertion, shop)
+result = client.client_credentials # => { "access_token" => "...", "scope" => "...", "expires_in" => 3599 }
+
+# You can now make a request using result["access_token"]
+request = ShopifyAPI::GraphQL::Request.new(shop, result["access_token"])
+request.execute("query { ... }")
+```
+
+Application-only access tokens do not have a refresh token. `#client_credentials` must be called again when the token expires.
+This can be done automatically, see [Refresh](#refresh).
+
+#### Refresh
+
+Pass the `:referesh` option to `ShopifyAPI::GraphQL::Request` to automatically refresh expiring application-only access tokens:
+
+```rb
+request = ShopifyAPI::GraphQL::Request.new(shop, token, :refresh => {
+  :client_id => SHOPIFY_CLIENT_ID,
+  :client_secret => assertion,     # Instance of ShopifyAPI::GraphQL::Request::OAuth::ClientAssertion
+  :expires_at => expires_at,       # From AccessToken#client_credentials, can be an absolute Time or Integer Unix epoch timestamp
+  :synchronize => ->(refresh, shopify_domain) do
+    shop = Shop.find_by!(:shopify_domain => shopify_domain)
+
+    shop.with_lock do
+      new_state = refresh.call(:access_token => shop.access_token, :expires_at => shop.expires_at)
+      shop.update!(:access_token => new_state[:access_token], :expires_at => new_state[:expires_at])
+    end
+  end
+})
+```
+
+See [The `:synchronize` Callback](#the-synchronize-callback) and [Multi-Process Concurrency](#multi-process-concurrency).
+They work the same way here except the state has no `:refresh_token` or `:refresh_expires_at` key.
+
+`ArgumentError` is raised for invalid arguments or public, unsupported, or incorrectly sized keys.
+
+#### Using Client Credentials
+
+This is only applicable for stores in your own organization. See [Shopify's documentation](https://shopify.dev/docs/apps/build/authentication-authorization/client-credentials-grant).
+
+```rb
+client = ShopifyAPI::GraphQL::Request::OAuth::AccessToken.new(
+  SHOPIFY_CLIENT_ID,
+  SHOPIFY_CLIENT_SECRET,
+  shop # must be in your organization
+)
+
+result = client.client_credentials # => { "access_token" => "...", "scope" => "...", "expires_in" => 86399 }
+
+# You can now make a request using result["access_token"]
+request = ShopifyAPI::GraphQL::Request.new(shop, result["access_token"])
+request.execute("query { ... }")
+```
+
 ### Migrating Non-Expiring Access Tokens
 
-To migrate a legacy non-expiring offline access token to an expiring offline access token, call `ShopifyAPI::GraphQL::Request::OAuth::AccessToken#migrate`:
+To migrate a legacy non-expiring offline access token to an expiring offline access token call `ShopifyAPI::GraphQL::Request::OAuth::AccessToken#migrate`:
 
 ```rb
 client = ShopifyAPI::GraphQL::Request::OAuth::AccessToken.new(
@@ -251,7 +346,7 @@ client = ShopifyAPI::GraphQL::Request::OAuth::AccessToken.new(
 tokens = client.migrate(non_expiring_token)
 ```
 
-`#migrate` returns Shopify's token exchange response `Hash`:
+`#migrate` returns Shopify's token exchange response as a `Hash`:
 
 ```rb
 {
@@ -278,19 +373,31 @@ store.update!(
 
 If the token is invalid or cannot be migrated, a `ShopifyAPI::GraphQL::Request::OAuth::AccessToken::InvalidTokenError` will be raised.
 
-#### Rake Task
+A Rake task is provided to assist with the migration of 1 or more stores. See [Rake Tasks](#rake-tasks).
 
-You can also migrate tokens using the provided rake task:
+#### Recovering a Lost Response
+
+If a migration request fails or the response is lost, you can safely repeat the `#migrate` call with the original non-expiring token within
+7 days of the initial exchange. Shopify will return the same token pair.
+
+## Rake Tasks
+
+The gem includes tasks to assist with token-related processes. If you are using Rails the tasks will be automatically loaded.
+
+### Migrating Non-Expiring Access Tokens
+
+Migrate a single shop:
 
 ```sh
-# Migrate a single shop:
 bundle exec rake shopify_api:graphql:request:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y SHOP=my-shop TOKEN=shpat_...
+```
 
-# Migrate from a CSV file (with "shop" and "token" columns). HANDLER is required, see below:
+Migrate using a CSV file. The CSV file requires "shop" and "token" columns:
+```
 bundle exec rake shopify_api:graphql:request:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
 ```
 
-A single shop's tokens are always printed. `HANDLER=file.rb` is required with `FILE` (nothing is printed for CSV) and optional with `SHOP`. Use it to persist the new tokens.
+A single shop's tokens are always printed. `HANDLER=file.rb` is required with `FILE` and optional with `SHOP`. Use it to persist the new tokens.
 The file is `load`ed and must define `update_token(shop, tokens)`, which is called with the shop and the return value of `#migrate`:
 
 ```rb
@@ -301,15 +408,19 @@ end
 ```
 
 ```sh
-bundle exec rake shopify_api:graphql:request:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
+rake shopify_api:graphql:request:migrate_access_tokens SHOPIFY_API_KEY=X SHOPIFY_API_SECRET=Y FILE=tokens.csv HANDLER=update_token.rb
 ```
 
 A summary of succeeded and failed shops (with the error for each failure) is printed when done. A failure for one shop does not stop the others; the task exits with status 1 if any shop failed.
 
-#### Recovering a Lost Response
+### Exporting Your Public Key as a JSON Web Key (JWK)
 
-If a migration request fails or the response is lost, you can safely repeat the `#migrate` call with the original non-expiring token within
-7 days of the initial exchange. Shopify will return the same token pair.
+To assist with the use [offline application-only access tokens](#expiring-offline-application-only-access-tokens) a task is included to export your public key as a JWK.
+The task reads the PEM file (private or public key) given by `KEY` and outputs a JWK. The `KEY`, `KID`, and `ALG` (`RS256` or `ES256`) argumens are all required:
+
+```sh
+rake shopify_api:graphql:request:jwk_export KID=your-key-id ALG=RS256 KEY=private_key.pem
+```
 
 ### More Info
 
@@ -319,6 +430,7 @@ For more information checkout [the API docs](https://rdoc.info/gems/shopify_api-
 
 - Easy-to-use
 - Built-in retry
+- Built-in token refresh
 - Built-in pagination
 - Improved exception handling
 - You can use `:snake_case` hash keys

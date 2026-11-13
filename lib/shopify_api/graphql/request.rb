@@ -71,6 +71,10 @@ module ShopifyAPI
       #   +:expires_at+ and +:refresh_expires_at+ must be absolute timestamps (+Time+s or Integer Unix epoch timestamps in seconds),
       #   not relative duration offsets (e.g. Shopify's +expires_in+).
       #
+      #   For application-only access tokens set +:client_secret+ to an OAuth::ClientAssertion.
+      #   These tokens have no refresh token so +:refresh_token+ and +:refresh_expires_at+ are not used and
+      #   are not required. A new token is obtained with OAuth::AccessToken#client_credentials.
+      #
       #   +:synchronize+ is a Proc called with a refresh Proc and the shop. It should persist the new token
       #   state returned by the refresh Proc:
       #
@@ -101,7 +105,12 @@ module ShopifyAPI
 
         raise ArgumentError, ":refresh must be a Hash" unless refresh.is_a?(Hash)
 
-        missing = [:client_id, :client_secret, :expires_at, :refresh_token, :refresh_expires_at, :synchronize].reject { |name| refresh.include?(name) }
+        @client_assertion = refresh[:client_secret].is_a?(OAuth::ClientAssertion)
+
+        required = [:client_id, :client_secret, :expires_at, :refresh_token, :refresh_expires_at, :synchronize]
+        required -= [:refresh_token, :refresh_expires_at] if @client_assertion
+
+        missing = required.reject { |name| refresh.include?(name) }
         raise ArgumentError, ":refresh requires #{missing.join(", ")}" if missing.any?
 
         validate_timestamp(:expires_at, refresh[:expires_at])
@@ -291,7 +300,7 @@ module ShopifyAPI
       def refresh_tokens(state = @token_state)
         state ||= @token_state
         if token_expired?(state)
-          @token_state = normalize_tokens(@oauth.refresh(state[:refresh_token]))
+          @token_state = normalize_tokens(request_tokens(state))
         else
           @token_state = state
         end
@@ -300,10 +309,15 @@ module ShopifyAPI
       def refresh_stale_tokens(state = @token_state)
         state ||= @token_state
         if state.equal?(@token_state) || state[:access_token] == @token_state[:access_token]
-          @token_state = normalize_tokens(@oauth.refresh(state[:refresh_token]))
+          @token_state = normalize_tokens(request_tokens(state))
         else
           @token_state = state
         end
+      end
+
+      # Application-only access tokens have no refresh token, get a new one with the client assertion
+      def request_tokens(state)
+        @client_assertion ? @oauth.client_credentials : @oauth.refresh(state[:refresh_token])
       end
 
       def refresh_after_401
@@ -352,5 +366,7 @@ module ShopifyAPI
   end
 end
 
+require "shopify_api/graphql/request/shop"
+require "shopify_api/graphql/request/oauth/client_assertion"
 require "shopify_api/graphql/request/oauth/access_token"
 require "shopify_api/graphql/request/railtie" if defined?(Rails::Railtie)

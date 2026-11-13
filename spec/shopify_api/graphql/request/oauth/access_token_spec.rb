@@ -107,6 +107,61 @@ RSpec.describe ShopifyAPI::GraphQL::Request::OAuth::AccessToken do
     end
   end
 
+  describe "#client_credentials" do
+    # SHOPIFY_PRIVATE_KEY is either a path to a PEM file or the PEM itself (\n escapes allowed)
+    # We do this to make it a bit easier locally (via path) and CI (via value)
+
+    def assertion
+      key = ENV.fetch("SHOPIFY_PRIVATE_KEY")
+      key = key.include?("BEGIN") ? key.gsub("\\n", "\n") : File.read(key)
+
+      ShopifyAPI::GraphQL::Request::OAuth::ClientAssertion.new(
+        ENV.fetch("SHOPIFY_CLIENT_API_KEY"),
+        key,
+        ENV.fetch("SHOPIFY_KEY_ID")
+      )
+    end
+
+    def expect_usable_token(result)
+      expect(result["access_token"]).to be_a(String)
+      expect(result["access_token"]).to_not be_empty
+      expect(result["expires_in"]).to be_a(Integer)
+      expect(result["expires_in"]).to be > 0
+      expect(result["scope"]).to be_a(String)
+
+      graphql = ShopifyAPI::GraphQL::Request.new(ENV.fetch("SHOPIFY_DOMAIN"), result["access_token"])
+      response = graphql.execute("{ shop { name } }")
+
+      expect(response.dig(:data, :shop, :name)).to be_a(String)
+    end
+
+    it "sends the client secret", :vcr do
+      expect_usable_token(client.client_credentials)
+    end
+
+    it "sends a client assertion instead of the client secret", :vcr do
+      token = described_class.new(
+        ENV.fetch("SHOPIFY_CLIENT_API_KEY"),
+        assertion,
+        ENV.fetch("SHOPIFY_DOMAIN")
+      )
+
+      expect_usable_token(token.client_credentials)
+    end
+
+    it "raises an Error on failure" do
+      WebMock.stub_request(:post, "https://shop.myshopify.com/admin/oauth/access_token").to_return(
+        :status => 400,
+        :headers => { "Content-Type" => "application/json" },
+        :body => { "error" => "invalid_client" }.to_json
+      )
+
+      expect {
+        described_class.new("id", "secret", "shop").client_credentials
+      }.to raise_error(ShopifyAPI::GraphQL::Request::Error, /invalid_client/)
+    end
+  end
+
   describe "#refresh", :vcr do
     it "refreshes an expiring offline access token" do
       result = client.refresh(refresh_token)
