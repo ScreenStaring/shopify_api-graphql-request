@@ -19,8 +19,8 @@ RSpec.describe ShopifyAPI::GraphQL::Request::OAuth::AccessTokenMigrator do
     file
   end
 
-  def access_token(shop)
-    ShopifyAPI::GraphQL::Request::OAuth::AccessToken.new("id", "secret", shop)
+  def access_token
+    ShopifyAPI::GraphQL::Request::OAuth::AccessToken.new("id", "secret")
   end
 
   before do
@@ -73,19 +73,19 @@ RSpec.describe ShopifyAPI::GraphQL::Request::OAuth::AccessTokenMigrator do
 
   describe "single shop" do
     before do
-      @client = access_token("my-shop")
-      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).with("id", "secret", "my-shop").and_return(@client)
+      @client = access_token
+      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).with("id", "secret").and_return(@client)
     end
 
     it "migrates and prints the result" do
-      expect(@client).to receive(:migrate).with("legacy").and_return(RESULT)
+      expect(@client).to receive(:migrate).with("my-shop", "legacy").and_return(RESULT)
 
       expect(migrator(:shop => "my-shop", :token => "legacy").run).to eq([{ :shop => "my-shop", :result => RESULT, :error => nil }])
       expect(@out.string).to include("shpca_123")
     end
 
     it "prefers shop over file" do
-      expect(@client).to receive(:migrate).with("legacy").and_return(RESULT)
+      expect(@client).to receive(:migrate).with("my-shop", "legacy").and_return(RESULT)
       migrator(:shop => "my-shop", :token => "legacy", :file => "/no/such.csv").run
     end
   end
@@ -98,13 +98,11 @@ RSpec.describe ShopifyAPI::GraphQL::Request::OAuth::AccessTokenMigrator do
     it "migrates each row, calls the handler, and does not print" do
       file = tempfile("shops.csv", "Shop, Token\nshop1,tok_a\n,\nshop2,tok_b\n")
       handler = tempfile("handler.rb", "def update_token(shop, result); ($migrated ||= []) << shop; end\n")
-      client1 = access_token("shop1")
-      client2 = access_token("shop2")
+      client = access_token
 
-      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).with("id", "secret", "shop1").and_return(client1)
-      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).with("id", "secret", "shop2").and_return(client2)
-      expect(client1).to receive(:migrate).with("tok_a").and_return(RESULT)
-      expect(client2).to receive(:migrate).with("tok_b").and_return(RESULT)
+      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).with("id", "secret").and_return(client)
+      expect(client).to receive(:migrate).with("shop1", "tok_a").and_return(RESULT)
+      expect(client).to receive(:migrate).with("shop2", "tok_b").and_return(RESULT)
 
       expect(migrator(:file => file.path, :handler => handler.path).run.map { |r| r[:shop] }).to eq(%w[shop1 shop2])
       expect($migrated).to eq(%w[shop1 shop2])
@@ -124,13 +122,11 @@ RSpec.describe ShopifyAPI::GraphQL::Request::OAuth::AccessTokenMigrator do
     it "rescues errors, keeps going, and reports status per shop" do
       file = tempfile("shops.csv", "shop,token\nshop1,tok_a\nshop2,tok_b\n")
       handler = tempfile("handler.rb", "def update_token(shop, result); end\n")
-      client1 = access_token("shop1")
-      client2 = access_token("shop2")
+      client = access_token
 
-      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).with("id", "secret", "shop1").and_return(client1)
-      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).with("id", "secret", "shop2").and_return(client2)
-      allow(client1).to receive(:migrate).and_raise(ShopifyAPI::GraphQL::Request::OAuth::AccessToken::InvalidTokenError, "bad token")
-      allow(client2).to receive(:migrate).and_return(RESULT)
+      allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).with("id", "secret").and_return(client)
+      allow(client).to receive(:migrate).with("shop1", "tok_a").and_raise(ShopifyAPI::GraphQL::Request::OAuth::AccessToken::InvalidTokenError, "bad token")
+      allow(client).to receive(:migrate).with("shop2", "tok_b").and_return(RESULT)
 
       statuses = migrator(:file => file.path, :handler => handler.path).run
 
@@ -144,7 +140,7 @@ RSpec.describe ShopifyAPI::GraphQL::Request::OAuth::AccessTokenMigrator do
     end
 
     it "reports handler errors as failures" do
-      client = access_token("my-shop")
+      client = access_token
       allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).and_return(client)
       allow(client).to receive(:migrate).and_return(RESULT)
 
@@ -163,7 +159,7 @@ RSpec.describe ShopifyAPI::GraphQL::Request::OAuth::AccessTokenMigrator do
     end
 
     it "loads the file and calls update_token with the shop and result" do
-      client = access_token("my-shop")
+      client = access_token
       allow(ShopifyAPI::GraphQL::Request::OAuth::AccessToken).to receive(:new).and_return(client)
       allow(client).to receive(:migrate).and_return(RESULT)
 

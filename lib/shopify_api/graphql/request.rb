@@ -20,6 +20,10 @@ module ShopifyAPI
       # instead of an absolute point in time.
       MIN_EPOCH_TIMESTAMP = 1_000_000_000
 
+      # Refresh access tokens slightly before expiration to cover clock skew and avoid
+      # unnecessary 401 round-trips on borderline requests.
+      TOKEN_EXPIRY_BUFFER = 60
+
       class UserError < Error
         attr_reader :errors
 
@@ -66,10 +70,17 @@ module ShopifyAPI
       # [:raise_if_not_found (Boolean)] If +true+ raise a NotFoundError if the requested record is not found. Defaults to +true+.
       # [:raise_if_user_errors (Boolean)] If +true+ raise a UserError if the mutation resulted in user errors. Defaults to +true+.
       # [:snake_case (Boolean)] Convert response `Hash` keys to +snake_case+ symbols. Defaults to +true+.
-      # [:refresh (Hash)] Auto-refresh expiring access tokens. Requires +:client_id+, +:client_secret+,
-      #   +:expires_at+, +:refresh_token+, +:refresh_expires_at+, and +:synchronize+.
+      # [:refresh (Hash)] Auto-refresh expiring access tokens. Requires +:client_id+, +:client_secret+ (or +:assertion+),
+      #   +:expires_at+, and +:synchronize+. For expiring offline tokens, also pass +:refresh_token+
+      #   (and optionally +:refresh_expires_at+).
       #   +:expires_at+ and +:refresh_expires_at+ must be absolute timestamps (+Time+s or Integer Unix epoch timestamps in seconds),
       #   not relative duration offsets (e.g. Shopify's +expires_in+).
+      #
+      #   For application-only access tokens, omit +:refresh_token+ (and pass +:assertion+ as an
+      #   OAuth::ClientAssertion for public apps, or +:client_secret+ for stores in your organization).
+      #   A new token is obtained with OAuth::AccessToken#client_credentials.
+      #   To get the first token pass +nil+ for +token+ and omit +:expires_at+; the token is requested
+      #   on the first query via +:synchronize+. Offline tokens must be obtained via OAuth authorization or token exchange.
       #
       #   +:synchronize+ is a Proc called with a refresh Proc and the shop. It should persist the new token
       #   state returned by the refresh Proc:
@@ -92,22 +103,31 @@ module ShopifyAPI
         end
 
         @shop = shop
-        @gql = ShopifyAPI::GraphQL::Tiny.new(shop, token, @options)
-
         @gid = TinyGID.new("shopify")
 
         refresh = @options[:refresh]
+        # Without :refresh a token is required, Tiny will raise if it's missing.
+        # With :refresh the first token is obtained, via the :synchronize callback, on the first request.
+        @gql = ShopifyAPI::GraphQL::Tiny.new(shop, token, @options) unless refresh && token.nil?
         return unless refresh
 
         raise ArgumentError, ":refresh must be a Hash" unless refresh.is_a?(Hash)
 
-        missing = [:client_id, :client_secret, :expires_at, :refresh_token, :refresh_expires_at, :synchronize].reject { |name| refresh.include?(name) }
+        @assertion = refresh[:assertion]
+        raise ArgumentError, ":assertion must be a ClientAssertion" if @assertion && !@assertion.is_a?(OAuth::ClientAssertion)
+
+        required = [:client_id]
+        required << :expires_at unless token.nil?
+        required << :synchronize
+        required << :client_secret unless @assertion
+
+        missing = required.reject { |name| refresh.include?(name) }
         raise ArgumentError, ":refresh requires #{missing.join(", ")}" if missing.any?
 
-        validate_timestamp(:expires_at, refresh[:expires_at])
+        validate_timestamp(:expires_at, refresh[:expires_at]) if refresh[:expires_at] || !token.nil?
         validate_timestamp(:refresh_expires_at, refresh[:refresh_expires_at]) if refresh[:refresh_expires_at]
 
-        @oauth = OAuth::AccessToken.new(refresh[:client_id], refresh[:client_secret], shop, @options)
+        @oauth = OAuth::AccessToken.new(refresh[:client_id], refresh[:client_secret], @options)
         @synchronize = refresh[:synchronize]
         @token_state = {
           :access_token => token,
@@ -159,6 +179,9 @@ module ShopifyAPI
         begin
           data = gql.execute(query, variables)
         rescue ShopifyAPI::GraphQL::Tiny::HTTPError => error
+          # TODO: check error message to ensure it's a refreshable error or a legit failure
+          warn error
+          warn error.code
           raise unless refreshable? && error.code == "401"
 
           refresh_after_401
@@ -286,8 +309,10 @@ module ShopifyAPI
       end
 
       def token_expired?(state)
+        return true if state[:access_token].nil?
+
         expires_at = state[:expires_at]
-        expires_at && to_time(expires_at) <= Time.now
+        expires_at && to_time(expires_at) <= Time.now + TOKEN_EXPIRY_BUFFER
       end
 
       def to_time(value)
@@ -315,7 +340,7 @@ module ShopifyAPI
       def refresh_tokens(state = @token_state)
         state ||= @token_state
         if token_expired?(state)
-          @token_state = normalize_tokens(@oauth.refresh(state[:refresh_token]))
+          @token_state = normalize_tokens(request_tokens(state))
         else
           @token_state = state
         end
@@ -324,9 +349,18 @@ module ShopifyAPI
       def refresh_stale_tokens(state = @token_state)
         state ||= @token_state
         if state.equal?(@token_state) || state[:access_token] == @token_state[:access_token]
-          @token_state = normalize_tokens(@oauth.refresh(state[:refresh_token]))
+          @token_state = normalize_tokens(request_tokens(state))
         else
           @token_state = state
+        end
+      end
+
+      # Application-only access tokens have no refresh token, get a new one with #client_credentials
+      def request_tokens(state)
+        if state[:refresh_token] && !@assertion
+          @oauth.refresh(@shop, state[:refresh_token])
+        else
+          @oauth.client_credentials(@shop, @assertion)
         end
       end
 
@@ -376,5 +410,7 @@ module ShopifyAPI
   end
 end
 
+require "shopify_api/graphql/request/shop"
+require "shopify_api/graphql/request/oauth/client_assertion"
 require "shopify_api/graphql/request/oauth/access_token"
 require "shopify_api/graphql/request/railtie" if defined?(Rails::Railtie)

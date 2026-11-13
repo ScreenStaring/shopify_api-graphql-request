@@ -10,3 +10,5 @@
 # rspec failure tracking
 .rspec_status
 .env*
+# We deal with keys for testing, don't wannt check them in!
+*.pem

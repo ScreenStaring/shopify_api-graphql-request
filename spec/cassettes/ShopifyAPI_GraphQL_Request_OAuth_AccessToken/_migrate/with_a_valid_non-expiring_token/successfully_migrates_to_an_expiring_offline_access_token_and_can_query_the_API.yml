@@ -200,6 +200,6 @@ http_interactions:
       - a58131fdec81f788-EWR
     body:
       encoding: ASCII-8BIT
-      string: '{"data":{"shop":{"name":"xqadf-123"}},"extensions":{"cost":{"requestedQueryCost":1,"actualQueryCost":1,"throttleStatus":{"maximumAvailable":2000.0,"currentlyAvailable":1999,"restoreRate":100.0},"fields":[{"path":["shop","name"],"definedCost":0,"requestedTotalCost":0,"requestedChildrenCost":0},{"path":["shop"],"definedCost":1,"requestedTotalCost":1,"requestedChildrenCost":0}]}}}'
+      string: '{"data":{"shop":{"name":"test-shop"}},"extensions":{"cost":{"requestedQueryCost":1,"actualQueryCost":1,"throttleStatus":{"maximumAvailable":2000.0,"currentlyAvailable":1999,"restoreRate":100.0},"fields":[{"path":["shop","name"],"definedCost":0,"requestedTotalCost":0,"requestedChildrenCost":0},{"path":["shop"],"definedCost":1,"requestedTotalCost":1,"requestedChildrenCost":0}]}}}'
   recorded_at: Tue, 10 Nov 2026 01:13:33 GMT
 recorded_with: VCR 6.4.1

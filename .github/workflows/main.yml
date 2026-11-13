@@ -15,18 +15,19 @@ jobs:
       SHOPIFY_REFRESH_TOKEN: "${{ secrets.SHOPIFY_REFRESH_TOKEN }}"
       SHOPIFY_CLIENT_API_KEY: "${{ secrets.SHOPIFY_CLIENT_API_KEY }}"
       SHOPIFY_CLIENT_API_SECRET: "${{ secrets.SHOPIFY_CLIENT_API_SECRET }}"
+      SHOPIFY_PRIVATE_KEY: "${{ secrets.SHOPIFY_PRIVATE_KEY }}"
+      SHOPIFY_KEY_ID: "${{ secrets.SHOPIFY_KEY_ID }}"
 
     strategy:
       matrix:
-        ruby: ['4.0', '3.4', '3.3', '3.2', '3.1', '3.0', '2.7']
+        ruby: ['4.0', '3.4', '3.3', '3.2', '3.1', '3.0', '2.7', '2.5']
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
           ruby-version: ${{ matrix.ruby }}
-          bundler: '2.4.22'
 
       - run: bundle install
       - run: bundle exec rake

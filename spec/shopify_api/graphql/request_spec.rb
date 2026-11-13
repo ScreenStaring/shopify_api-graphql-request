@@ -224,7 +224,7 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
 
   describe "token refreshing via the :refresh option" do
     before do
-      @oauth = ShopifyAPI::GraphQL::Request::OAuth::AccessToken.new("client-id", "client-secret", "test-shop")
+      @oauth = ShopifyAPI::GraphQL::Request::OAuth::AccessToken.new("client-id", "client-secret")
       allow(@oauth).to receive(:refresh).and_return(
         "access_token" => "new-token",
         "expires_in" => 3600,
@@ -275,7 +275,7 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
     it "raises ArgumentError when refresh options are missing" do
       expect {
         request(:refresh => { :client_id => "client-id" })
-      }.to raise_error(ArgumentError, ":refresh requires client_secret, expires_at, refresh_token, refresh_expires_at, synchronize")
+      }.to raise_error(ArgumentError, ":refresh requires expires_at, synchronize, client_secret")
     end
 
     it "raises ArgumentError when :refresh is not a Hash" do
@@ -314,14 +314,21 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
     it "refreshes an expired token before executing" do
       request(refresh_options).execute("{ shop { name } }")
 
-      expect(@oauth).to have_received(:refresh).with("db-refresh-token")
-      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "new-token", anything)
+      expect(@oauth).to have_received(:refresh).with("test-shop", "db-refresh-token")
+      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "new-token", instance_of(Hash))
     end
 
     it "accepts a Time instance for :expires_at" do
       request(refresh_options(nil, :expires_at => Time.now - 60)).execute("{ shop { name } }")
 
-      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "new-token", anything)
+      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "new-token", instance_of(Hash))
+    end
+
+    it "refreshes proactively when the token expires within the safety buffer" do
+      request(refresh_options(->(refresh, shop) { refresh.call }, :expires_at => Time.now.to_i + 30)).execute("{ shop { name } }")
+
+      expect(@oauth).to have_received(:refresh).with("test-shop", "refresh-token")
+      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "new-token", instance_of(Hash))
     end
 
     it "uses the persisted token when another process refreshed first" do
@@ -337,7 +344,7 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
       request(options).execute("{ shop { name } }")
 
       expect(@oauth).to_not have_received(:refresh)
-      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "fresh-db-token", anything)
+      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "fresh-db-token", instance_of(Hash))
     end
 
     it "passes the shop to the synchronize proc" do
@@ -361,8 +368,8 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
       options = refresh_options(->(refresh, shop) { refresh.call })
       request(options).execute("{ shop { name } }")
 
-      expect(@oauth).to have_received(:refresh).with("refresh-token")
-      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "new-token", anything)
+      expect(@oauth).to have_received(:refresh).with("test-shop", "refresh-token")
+      expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "new-token", instance_of(Hash))
     end
 
     it "raises a RefreshNotCalledError when the synchronize proc does not call refresh" do
@@ -392,7 +399,7 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
 
       expect(result).to eq(:data => { :shop => { :name => "Test Shop" } })
       expect(@gql).to have_received(:execute).twice
-      expect(@oauth).to have_received(:refresh).once.with("db-refresh-token")
+      expect(@oauth).to have_received(:refresh).once.with("test-shop", "db-refresh-token")
     end
 
     it "refreshes after 401 when refresh proc is called without arguments" do
@@ -402,7 +409,7 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
       result = request(options).execute("{ shop { name } }")
 
       expect(result).to eq(:data => { :shop => { :name => "Test Shop" } })
-      expect(@oauth).to have_received(:refresh).once.with("refresh-token")
+      expect(@oauth).to have_received(:refresh).once.with("test-shop", "refresh-token")
       expect(@gql).to have_received(:execute).twice
     end
 
@@ -479,6 +486,191 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
 
         expect(@oauth).to have_received(:refresh).once
         expect(@gql).to have_received(:execute).twice
+      end
+    end
+
+    context "with an :assertion" do
+      before do
+        @assertion = ShopifyAPI::GraphQL::Request::OAuth::ClientAssertion.new("client-id", OpenSSL::PKey::RSA.generate(2048), "key-id")
+        allow(@oauth).to receive(:client_credentials).and_return(
+          "access_token" => "app-only-token",
+          "expires_in" => 3599
+        )
+      end
+
+      def assertion_options(synchronize = nil, overrides = nil)
+        {
+          :refresh => {
+            :client_id => "client-id",
+            :assertion => @assertion,
+            :expires_at => Time.now.to_i - 60,
+            :synchronize => synchronize || ->(refresh, shop) { refresh.call }
+          }.merge(overrides || {})
+        }
+      end
+
+      it "does not require :client_secret, :refresh_token, or :refresh_expires_at" do
+        expect { request(assertion_options) }.to_not raise_error
+      end
+
+      it "rejects an invalid :assertion" do
+        expect {
+          request(assertion_options(nil, :assertion => "not-an-assertion"))
+        }.to raise_error(ArgumentError, ":assertion must be a ClientAssertion")
+      end
+
+      it "still requires the other :refresh options" do
+        expect {
+          request(:refresh => { :assertion => @assertion })
+        }.to raise_error(ArgumentError, ":refresh requires client_id, expires_at, synchronize")
+      end
+
+      it "gets a new token with #client_credentials when the token is expired" do
+        request(assertion_options).execute("{ shop { name } }")
+
+        expect(@oauth).to have_received(:client_credentials).with("test-shop", @assertion).once
+        expect(@oauth).to_not have_received(:refresh)
+        expect(@gql).to have_received(:execute).once
+      end
+
+      it "yields the new token state to :synchronize without a refresh token" do
+        state = nil
+        synchronize = ->(refresh, shop) { state = refresh.call }
+
+        request(assertion_options(synchronize)).execute("{ shop { name } }")
+
+        expect(state).to include(:access_token => "app-only-token", :refresh_token => nil, :refresh_expires_at => nil)
+        expect(state[:expires_at]).to be_within(5).of(Time.now.to_i + 3599)
+      end
+
+      it "does not get a new token when the token is not expired" do
+        request(assertion_options(nil, :expires_at => Time.now.to_i + 3600)).execute("{ shop { name } }")
+
+        expect(@oauth).to_not have_received(:client_credentials)
+      end
+
+      it "uses the persisted token when another process refreshed first" do
+        synchronize = ->(refresh, shop) do
+          refresh.call(:access_token => "db-token", :expires_at => Time.now.to_i + 3600)
+        end
+
+        request(assertion_options(synchronize)).execute("{ shop { name } }")
+
+        expect(@oauth).to_not have_received(:client_credentials)
+      end
+
+      it "gets a new token and retries once when the API returns 401" do
+        unauthorized_then_success
+
+        options = assertion_options(nil, :expires_at => Time.now.to_i + 3600)
+        result = request(options).execute("{ shop { name } }")
+
+        expect(result).to eq(:data => { :shop => { :name => "Test Shop" } })
+        expect(@oauth).to have_received(:client_credentials).with("test-shop", @assertion).once
+        expect(@gql).to have_received(:execute).twice
+      end
+
+      context "without an existing token" do
+        def first_token_options(synchronize = nil)
+          {
+            :refresh => {
+              :client_id => "client-id",
+              :assertion => @assertion,
+              :synchronize => synchronize || ->(refresh, shop) { refresh.call }
+            }
+          }
+        end
+
+        it "does not require a token or :expires_at" do
+          expect {
+            described_class.new("test-shop", nil, first_token_options)
+          }.to_not raise_error
+        end
+
+        it "gets the first token with #client_credentials on the first query" do
+          described_class.new("test-shop", nil, first_token_options).execute("{ shop { name } }")
+
+          expect(@oauth).to have_received(:client_credentials).with("test-shop", @assertion).once
+          expect(@oauth).to_not have_received(:refresh)
+          expect(@gql).to have_received(:execute).once
+        end
+
+        it "creates the GraphQL client with the new token" do
+          described_class.new("test-shop", nil, first_token_options).execute("{ shop { name } }")
+
+          expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "app-only-token", instance_of(Hash)).once
+        end
+
+        it "yields the new token state to :synchronize" do
+          state = nil
+          synchronize = ->(refresh, shop) { state = refresh.call }
+
+          described_class.new("test-shop", nil, first_token_options(synchronize)).execute("{ shop { name } }")
+
+          expect(state).to include(:access_token => "app-only-token", :refresh_token => nil)
+        end
+
+        it "gets the first token before paginating" do
+          allow(@gql).to receive(:paginate).and_return(@gql)
+          allow(@gql).to receive(:execute).and_return([{ "data" => { "shop" => { "name" => "Test Shop" } } }].lazy)
+
+          described_class.new("test-shop", nil, first_token_options).paginate("{ shop { name } }") { |page| page }
+
+          expect(@oauth).to have_received(:client_credentials).with("test-shop", @assertion).once
+        end
+      end
+    end
+
+    context "with :client_secret and no :refresh_token (client_credentials)" do
+      before do
+        allow(@oauth).to receive(:client_credentials).and_return(
+          "access_token" => "org-token",
+          "expires_in" => 86399
+        )
+      end
+
+      def org_options(synchronize = nil, overrides = nil)
+        {
+          :refresh => {
+            :client_id => "client-id",
+            :client_secret => "client-secret",
+            :expires_at => Time.now.to_i - 60,
+            :synchronize => synchronize || ->(refresh, shop) { refresh.call }
+          }.merge(overrides || {})
+        }
+      end
+
+      it "gets a new token with #client_credentials without an assertion when expired" do
+        request(org_options).execute("{ shop { name } }")
+
+        expect(@oauth).to have_received(:client_credentials).with("test-shop", nil).once
+        expect(@oauth).to_not have_received(:refresh)
+        expect(@gql).to have_received(:execute).once
+      end
+
+      it "gets a new token and retries once when the API returns 401" do
+        unauthorized_then_success
+
+        result = request(org_options(nil, :expires_at => Time.now.to_i + 3600)).execute("{ shop { name } }")
+
+        expect(result).to eq(:data => { :shop => { :name => "Test Shop" } })
+        expect(@oauth).to have_received(:client_credentials).with("test-shop", nil).once
+        expect(@gql).to have_received(:execute).twice
+      end
+
+      it "gets the first token with #client_credentials when there is no token or :expires_at" do
+        options = {
+          :refresh => {
+            :client_id => "client-id",
+            :client_secret => "client-secret",
+            :synchronize => ->(refresh, shop) { refresh.call }
+          }
+        }
+
+        described_class.new("test-shop", nil, options).execute("{ shop { name } }")
+
+        expect(@oauth).to have_received(:client_credentials).with("test-shop", nil).once
+        expect(ShopifyAPI::GraphQL::Tiny).to have_received(:new).with("test-shop", "org-token", instance_of(Hash)).once
       end
     end
   end

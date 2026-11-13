@@ -11,7 +11,7 @@ VCR.configure do |config|
   config.configure_rspec_metadata!
   config.allow_http_connections_when_no_cassette = true
 
-  %w[SHOPIFY_DOMAIN SHOPIFY_TOKEN SHOPIFY_CLIENT_API_KEY SHOPIFY_CLIENT_API_SECRET SHOPIFY_REFRESH_TOKEN].each do |var|
+  %w[SHOPIFY_DOMAIN SHOPIFY_TOKEN SHOPIFY_CLIENT_API_KEY SHOPIFY_CLIENT_API_SECRET SHOPIFY_REFRESH_TOKEN SHOPIFY_KEY_ID].each do |var|
     config.filter_sensitive_data("<#{var}>") { ENV[var] }
   end
 
@@ -21,7 +21,15 @@ VCR.configure do |config|
   # be known before recording.
   config.before_record do |interaction|
     [interaction.response.body, interaction.request.body].each do |body|
-      body.to_s.scan(/(?:shpca|shpat|shppa)_[a-zA-Z0-9]+/i) do |token|
+      body.to_s.scan(/eyJ[\w-]+\.[\w-]+\.[\w-]+/) do |jwt|
+        interaction.filter!(jwt, "<CLIENT_ASSERTION>")
+      end
+
+      body.to_s.scan(/"shop":\{"name":"([^"]*)"/) do |name|
+        interaction.filter!(name.first, "test-shop")
+      end
+
+      body.to_s.scan(/(?:shpca|shpat|shppa|shpua)_[a-zA-Z0-9]+/i) do |token|
         interaction.filter!(token, "<SHOPIFY_ACCESS_TOKEN>")
       end
 
@@ -30,11 +38,9 @@ VCR.configure do |config|
       end
     end
 
-    interaction.request.headers.each_value do |values|
-      Array(values).each do |value|
-        value.to_s.scan(/(?:shpca|shpat|shppa)_[a-zA-Z0-9]+/i) do |token|
-          interaction.filter!(token, "<SHOPIFY_ACCESS_TOKEN>")
-        end
+    if interaction.request.headers.include?("X-Shopify-Access-Token")
+      Array(interaction.request.headers["X-Shopify-Access-Token"]).each do |token|
+        interaction.filter!(token, "<SHOPIFY_ACCESS_TOKEN>")
       end
     end
   end

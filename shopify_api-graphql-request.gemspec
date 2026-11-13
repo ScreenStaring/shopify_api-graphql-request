@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Skye Shaw"]
   spec.email         = ["skye.shaw@gmail.com"]
 
-  spec.summary = "Small class to simplify the writing and handling of GraphQL queries and mutations for the Shopify Admin API. Comes with built-in retry, token refresh, pagination, error handling, and more!"
+  spec.summary = "Simplify GraphQL queries and mutations for the Shopify Admin API. Comes with built-in OAuth token refresh, retry, pagination, error handling, and more!"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 2.5.0" # Hash#slice
   spec.metadata = {
@@ -35,6 +35,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "tiny_gid", ">= 0.1.2", "< 2"
   spec.add_dependency "strings-case"
   spec.add_dependency "csv", ">= 3.0"
+  spec.add_dependency "jwt", ">= 2.6", "< 4" # 2.6 added support for extra JWK parameters
 
   spec.add_development_dependency "bundler"
   spec.add_development_dependency "rake", ">= 13.0"

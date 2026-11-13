@@ -39,8 +39,6 @@ module ShopifyAPI
           # ArgumentError
           #
           def initialize(client_id, client_secret, options = {})
-            @client_id = client_id
-            @client_secret = client_secret
             @shop = nil_if_blank(options[:shop])
             @token = nil_if_blank(options[:token])
             @file = nil_if_blank(options[:file])
@@ -51,6 +49,8 @@ module ShopifyAPI
             raise ArgumentError, "client_secret required" if nil_if_blank(client_secret).nil?
             raise ArgumentError, "shop or file required" unless @shop || @file
             raise ArgumentError, "handler required when using file" if !@shop && !@handler
+
+            @client = AccessToken.new(client_id, client_secret)
           end
 
           ##
@@ -108,8 +108,7 @@ module ShopifyAPI
           end
 
           def migrate(shop, token)
-            client = AccessToken.new(@client_id, @client_secret, shop)
-            result = client.migrate(token)
+            result = @client.migrate(shop, token)
 
             @out.puts result.pretty_inspect if @shop
 
