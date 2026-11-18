@@ -180,8 +180,6 @@ module ShopifyAPI
           data = gql.execute(query, variables)
         rescue ShopifyAPI::GraphQL::Tiny::HTTPError => error
           # TODO: check error message to ensure it's a refreshable error or a legit failure
-          warn error
-          warn error.code
           raise unless refreshable? && error.code == "401"
 
           refresh_after_401
