@@ -405,5 +405,46 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
       expect(@oauth).to have_received(:refresh).once.with("refresh-token")
       expect(@gql).to have_received(:execute).twice
     end
+
+    describe "#paginate" do
+      before do
+        @query = "query($after: String) { products(first: 1, after: $after) { nodes { id } pageInfo { hasNextPage endCursor } } }"
+        @options = refresh_options(-> (refresh, shop) { refresh.call }, :expires_at => Time.now.to_i + 3600)
+      end
+
+      # Returns 2 pages: the first when there's no cursor, the second for cursor "page-2"
+      def products_page(variables)
+        cursor = variables && variables["after"]
+        {
+          "data" => {
+            "products" => {
+              "nodes" => [{ "id" => cursor || "page-1" }],
+              "pageInfo" => { "hasNextPage" => cursor.nil?, "endCursor" => cursor ? nil : "page-2" }
+            }
+          }
+        }
+      end
+
+      def unauthorized_on_call(*unauthorized)
+        calls = 0
+        allow(@gql).to receive(:execute) do |_, variables|
+          calls += 1
+          raise ShopifyAPI::GraphQL::Tiny::HTTPError.new("Unauthorized", "401") if unauthorized.include?(calls)
+
+          products_page(variables)
+        end
+      end
+
+      it "refreshes once and raises when the API still returns 401 after refreshing" do
+        unauthorized_on_call(1, 2)
+
+        expect {
+          request(@options).paginate(@query) { |page| page }
+        }.to raise_error(ShopifyAPI::GraphQL::Tiny::HTTPError)
+
+        expect(@oauth).to have_received(:refresh).once
+        expect(@gql).to have_received(:execute).twice
+      end
+    end
   end
 end

@@ -195,6 +195,7 @@ module ShopifyAPI
 
         variables = camelize_keys(variables) if options[:snake_case]
         ensure_fresh_token
+        refreshed = false
 
         begin
           pager = gql.paginate
@@ -211,9 +212,11 @@ module ShopifyAPI
 
           pages.each { |page| yield page }
         rescue ShopifyAPI::GraphQL::Tiny::HTTPError => error
-          raise unless refreshable? && error.code == "401"
+          # Only refresh once, otherwise a persistent 401 (e.g., revoked access) would loop forever
+          raise unless refreshable? && error.code == "401" && !refreshed
 
           refresh_after_401
+          refreshed = true
           retry
         end
 
