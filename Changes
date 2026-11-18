@@ -1,3 +1,7 @@
+v0.2.1  2026-11-18
+--------------------
+Remove warn output on HTTP error
+
 v0.2.0  2026-11-18
 --------------------
 Add support for application-only expiring tokens
