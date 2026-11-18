@@ -31,7 +31,7 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "shopify_api-graphql-tiny", ">= 1.0.1", "< 2"
+  spec.add_dependency "shopify_api-graphql-tiny", ">= 1.1.1", "< 2"
   spec.add_dependency "tiny_gid", ">= 0.1.2", "< 2"
   spec.add_dependency "strings-case"
   spec.add_dependency "csv", ">= 3.0"
