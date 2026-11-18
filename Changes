@@ -1,3 +1,9 @@
+v0.2.0  2026-11-18
+--------------------
+Add support for application-only expiring tokens
+Fix issues with token refresh when paginating
+Change OAuth::AccessToken signatures to account for application-only access token requirements
+
 v0.1.1  2026-11-11
 --------------------
 Improve robustness of token migration task when using a spreadsheet
