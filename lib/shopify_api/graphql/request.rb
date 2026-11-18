@@ -194,31 +194,18 @@ module ShopifyAPI
         options = @options.merge(options || {})
 
         variables = camelize_keys(variables) if options[:snake_case]
-        ensure_fresh_token
-        refreshed = false
 
-        begin
-          pager = gql.paginate
-          # execute() returns a lazy enumerator so we're not loading everything now.
-          pages = pager.execute(query, variables).map do |page|
-            raise_if_not_found(page, variables) if options[:raise_if_not_found]
-            raise_if_user_errors(page) if options[:raise_if_user_errors]
+        pager = RetryPaginator.new(self, query, variables).lazy.map do |page|
+          raise_if_not_found(page, variables) if options[:raise_if_not_found]
+          raise_if_user_errors(page) if options[:raise_if_user_errors]
 
-            page = snake_case_keys(page) if options[:snake_case]
-            page
-          end
-
-          return pages unless block_given?
-
-          pages.each { |page| yield page }
-        rescue ShopifyAPI::GraphQL::Tiny::HTTPError => error
-          # Only refresh once, otherwise a persistent 401 (e.g., revoked access) would loop forever
-          raise unless refreshable? && error.code == "401" && !refreshed
-
-          refresh_after_401
-          refreshed = true
-          retry
+          page = snake_case_keys(page) if options[:snake_case]
+          page
         end
+
+        return pager unless block_given?
+
+        pager.each { |page| yield page }
 
         nil
       end
@@ -252,6 +239,40 @@ module ShopifyAPI
       end
 
       private
+
+      # Enumerates paginated GraphQL results, refreshing the access token at most once per page on 401
+      # and resuming from the pager's current cursor.
+      class RetryPaginator < Enumerator # :nodoc:
+        def initialize(request, query, variables)
+          super() do |y|
+            request.send(:ensure_fresh_token)
+
+            vars = variables ? variables.dup : {}
+            refreshed = false
+
+            begin
+              pager = request.send(:gql).paginate
+              pager.execute(query, vars) do |page|
+                # A page succeeded, so a later 401 may refresh again
+                refreshed = false
+                # Yielding inside this rescue block means a 401 HTTPError raised by the
+                # caller's block will also trigger a refresh and retry of the current page.
+                y << page
+              end
+            rescue ShopifyAPI::GraphQL::Tiny::HTTPError => error
+              # Only refresh once per page, otherwise a persistent 401 (e.g., revoked access) would loop forever
+              raise unless request.send(:refreshable?) && error.code == "401" && !refreshed
+
+              request.send(:refresh_after_401)
+              refreshed = true
+              vars["after"] = pager.cursor if pager.cursor
+              retry
+            end
+          end
+        end
+      end
+
+      private_constant :RetryPaginator
 
       def ensure_fresh_token
         return unless refreshable?

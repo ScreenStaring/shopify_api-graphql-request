@@ -435,7 +435,42 @@ RSpec.describe ShopifyAPI::GraphQL::Request do
         end
       end
 
-      it "refreshes once and raises when the API still returns 401 after refreshing" do
+      def page_ids(pages)
+        pages.map { |page| page.dig(:data, :products, :nodes, 0, :id) }
+      end
+
+      it "refreshes and continues from the current page when the API returns 401 during pagination" do
+        unauthorized_on_call(2)
+
+        pages = []
+        request(@options).paginate(@query) { |page| pages << page }
+
+        expect(page_ids(pages)).to eq %w[page-1 page-2]
+        expect(@oauth).to have_received(:refresh).once
+        expect(@gql).to have_received(:execute).exactly(3).times
+      end
+
+      it "refreshes when the API returns 401 and no block is given" do
+        unauthorized_on_call(1)
+
+        pages = request(@options).paginate(@query).to_a
+
+        expect(page_ids(pages)).to eq %w[page-1 page-2]
+        expect(@oauth).to have_received(:refresh).once
+      end
+
+      it "refreshes an expired token lazily when iterating without a block" do
+        allow(@gql).to receive(:execute) { |_, variables| products_page(variables) }
+        expired = refresh_options(-> (refresh, shop) { refresh.call }, :expires_at => Time.now.to_i - 60)
+
+        pager = request(expired).paginate(@query)
+        expect(@oauth).not_to have_received(:refresh)
+
+        expect(page_ids(pager.to_a)).to eq %w[page-1 page-2]
+        expect(@oauth).to have_received(:refresh).once
+      end
+
+      it "refreshes once per page and raises when the API still returns 401 after refreshing" do
         unauthorized_on_call(1, 2)
 
         expect {
